@@ -1,0 +1,34 @@
+# Default configuration for Incident-Triggered Multi-Camera Vehicle Search
+
+detector:
+  model_name: "yolo11m.pt"
+  conf_threshold: 0.25
+  classes: [2, 3, 5, 7]  # COCO: car (2), motorcycle (3), bus (5), truck (7)
+  device: "cpu"  # set to "cuda" if GPU is available
+
+tracker:
+  type: "bytetrack"
+  tracker_yaml: "bytetrack.yaml"
+  min_len: 10  # minimum frames for a valid tracklet
+  max_crops_per_tracklet: 8
+
+reid:
+  model_name: "sbs_R50-ibn"
+  weights_url: "https://github.com/JDAI-CV/fast-reid/releases/download/v0.1.1/veri_sbs_R50-ibn.pth"
+  weights_path: "weights/veri_sbs_R50-ibn.pth"
+  aggregation: "mean"  # "single" or "mean"
+  embedding_dim: 2048
+  device: "cpu"
+
+search:
+  mode: "appearance_graph_prior"  # appearance_only, appearance_window, appearance_graph_prior
+  time_window_s: 60.0  # T in seconds
+  alpha: 0.1  # score = cosine_sim + alpha * (prior / max_prior)
+  min_edge_samples: 5
+
+incident:
+  deceleration_threshold: 2.0  # normalized speed drop
+  iou_overlap_threshold: 0.3
+  stop_duration_s: 3.0
+
+seed: 0

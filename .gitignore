@@ -1,0 +1,70 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Testing & Linting
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Data and Outputs (per research specification)
+data/
+outputs/
+*.npy
+*.npz
+
+# Model weights and artifacts
+*.pt
+*.pth
+*.onnx
+*.bin
+*.weights
+
+# Video & large media files
+*.mp4
+*.avi
+*.mkv
+*.mov
+*.webm
+*.ogv
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Sensitive credentials
+*.pem
+*.key
+*.token
+credentials.json
