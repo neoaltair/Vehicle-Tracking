@@ -79,7 +79,10 @@ ruff check .
 ## Milestone Progress
 
 - [x] **M0: Setup** — Packaging, environment specification, test harness, git repo.
-- [ ] **M1: Detection and Tracking** — YOLO11m + ByteTrack, tracklet schemas, crops, and annotated video rendering.
+- [x] **M1: Detection and Tracking** — YOLO11m + ByteTrack, tracklet schemas, crops, and annotated video rendering.
+  - Verified on highway CCTV footage (`data/raw/samples/demo_traffic.mp4`).
+  - Saved 6 persistent tracklets and 48 quality-sampled vehicle crops.
+  - Sample outputs: [Sample Annotated Frame](docs/assets/sample_annotated_frame.jpg) and vehicle crops in `docs/assets/`.
 - [ ] **M2: Embeddings and Retrieval Demo** — FastReID VeRi-776 feature extractor, aggregation, top-5 retrieval demo.
 - [ ] **M3: Data Loaders and Re-ID Baseline** — Multi-camera dataset loaders and validation baseline.
 - [ ] **M4: Camera Graph** — Directed camera transition graph with log-normal travel time priors.
