@@ -65,16 +65,27 @@ pytest
 ruff check .
 ```
 
+### 3. Run Retrieval Demo (M2)
+
+```powershell
+python scripts/retrieval_demo.py
+# Output: docs/assets/retrieval_demo_top5.png
+```
+
 ---
 
 ## Milestone Progress
 
 - [x] **M0: Setup** — Packaging, environment specification, test harness, git repo.
+
 - [x] **M1: Detection and Tracking** — YOLO11m + ByteTrack, tracklet schemas, crops, and annotated video rendering.
   - Verified on highway CCTV footage (`data/raw/samples/demo_traffic.mp4`).
   - Saved 6 persistent tracklets and 48 quality-sampled vehicle crops.
   - Sample outputs: [Sample Annotated Frame](docs/assets/sample_annotated_frame.jpg) and vehicle crops in `docs/assets/`.
-- [ ] **M2: Embeddings and Retrieval Demo** — FastReID VeRi-776 feature extractor, aggregation, top-5 retrieval demo.
+- [x] **M2: Embeddings and Retrieval Demo** — FastReID SBS R50-ibn (VeRi-776) feature extractor, L2-normalized 2048-d embeddings, mean-pool tracklet aggregation, cosine-similarity retrieval, top-5 grid demo.
+  - Embedded all 6 demo tracklets (48 crops); per-tracklet `.npz` cache under `outputs/cache/embeddings/`.
+  - Retrieval demo output: [retrieval_demo_top5.png](docs/assets/retrieval_demo_top5.png) — query `c001_trk0012` (96 frames) vs. gallery of 5; top-1 sim = 0.9860.
+  - Docs added: [ARCHITECTURE.md](docs/ARCHITECTURE.md), [EXPERIMENTS.md](docs/EXPERIMENTS.md).
 - [ ] **M3: Data Loaders and Re-ID Baseline** — Multi-camera dataset loaders and validation baseline.
 - [ ] **M4: Camera Graph** — Directed camera transition graph with log-normal travel time priors.
 - [ ] **M5: Spatio-Temporal Search** — Candidate pruning and ranked retrieval evaluation.
