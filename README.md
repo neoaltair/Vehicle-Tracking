@@ -14,16 +14,7 @@ This system automates that upstream search:
 
 ---
 
-## Verified Execution Environment
 
-- **Operating System:** Windows 11 (AMD64)
-- **Python Version:** 3.13.5 (verified with setuptools 80.10.2, pip 26.0)
-- **GPU Hardware:** NVIDIA GeForce GTX 1650 (4 GB VRAM)
-- **GPU Driver & CUDA:** Driver 595.71, CUDA 13.2 support
-- **Compute Execution:** CPU fallback enabled for development and memory safety (`--device cpu`, `--max-videos`, `--max-frames`); GPU enabled when VRAM permits.
-- **Git Version:** 2.53.0.windows.1
-
----
 
 ## Repository Structure
 
