@@ -236,32 +236,20 @@ def load_cityflow_gt_tracklets(
     return tracklets
 
 
+
 def save_tracklet_crops(
     tracklet: Tracklet,
     video_path: str | Path,
     crops_dir: str | Path,
     k: int = 8,
 ) -> Tracklet:
-    """Extract and save up to `k` quality-sampled crop images from a video.
-
-    Selects frames by the same heuristic as the tracker: highest
-    `score × log(area + 1)`.  For GT tracklets the score is 1.0 for all
-    frames, so selection reduces to largest-area frames.
-
-    Args:
-        tracklet: GT-derived Tracklet (``crop_paths`` will be overwritten).
-        video_path: Camera video file.
-        crops_dir: Directory where crop JPEG images are written.
-        k: Maximum number of crops to save.
-
-    Returns:
-        A new ``Tracklet`` instance with ``crop_paths`` populated.
-    """
+    """Extract up to k quality-sampled GT crops using direct frame seeking."""
     import logging
-
+    import cv2
     import numpy as np
 
     logger = logging.getLogger(__name__)
+
     video_path = Path(video_path)
     crops_dir = Path(crops_dir)
     crops_dir.mkdir(parents=True, exist_ok=True)
@@ -270,65 +258,72 @@ def save_tracklet_crops(
     boxes = tracklet.boxes
     scores = tracklet.scores
 
-    # Quality score for each detection
-    qualities: list[tuple[float, int]] = []
+    # Select the k largest/highest-quality detections.
+    qualities = []
+
     for i in range(n):
         x1, y1, x2, y2 = boxes[i]
         area = max(0.0, x2 - x1) * max(0.0, y2 - y1)
         q = scores[i] * float(np.log1p(area))
         qualities.append((q, i))
+
     qualities.sort(key=lambda x: x[0], reverse=True)
     selected_indices = sorted([idx for _, idx in qualities[:k]])
 
     selected_frames = [tracklet.frames[i] for i in selected_indices]
     selected_boxes = [boxes[i] for i in selected_indices]
-    frame_set = dict(zip(selected_frames, selected_boxes))
 
     cap = cv2.VideoCapture(str(video_path))
+
     if not cap.isOpened():
-        logger.warning("Could not open video %s — no crops saved.", video_path)
+        logger.warning("Could not open video %s", video_path)
         return tracklet
 
-    saved_paths: list[str] = []
+    saved_paths = []
+
     try:
-        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-        current_frame = 0
-        pending = sorted(frame_set.keys())
-        target_iter = iter(pending)
-        next_target = next(target_iter, None)
+        for frame_id, box in zip(selected_frames, selected_boxes):
 
-        while next_target is not None and current_frame <= max(pending):
+            # CityFlow GT frame IDs are 1-based.
+            # OpenCV CAP_PROP_POS_FRAMES is 0-based.
+            zero_based = max(0, int(frame_id) - 1)
+
+            cap.set(cv2.CAP_PROP_POS_FRAMES, zero_based)
+
             ret, frame = cap.read()
+
             if not ret:
-                break
-            # CityFlow uses 1-based frame IDs; OpenCV reads 0-based
-            one_based = current_frame + 1
-            if one_based == next_target:
-                x1, y1, x2, y2 = frame_set[one_based]
-                # Clamp
-                x1c = max(0, min(width - 1, int(round(x1))))
-                y1c = max(0, min(height - 1, int(round(y1))))
-                x2c = max(x1c + 1, min(width, int(round(x2))))
-                y2c = max(y1c + 1, min(height, int(round(y2))))
-                crop = frame[y1c:y2c, x1c:x2c]
+                logger.warning(
+                    "Could not read frame %s from %s",
+                    frame_id,
+                    video_path,
+                )
+                continue
 
-                fname = f"{tracklet.tracklet_id}_f{one_based:05d}.jpg"
-                fpath = crops_dir / fname
+            x1, y1, x2, y2 = box
+
+            x1 = max(0, min(width - 1, int(round(x1))))
+            y1 = max(0, min(height - 1, int(round(y1))))
+            x2 = max(x1 + 1, min(width, int(round(x2))))
+            y2 = max(y1 + 1, min(height, int(round(y2))))
+
+            crop = frame[y1:y2, x1:x2]
+
+            if crop.size == 0:
+                continue
+
+            fname = f"{tracklet.tracklet_id}_f{int(frame_id):05d}.jpg"
+            fpath = crops_dir / fname
+
+            if not fpath.exists():
                 cv2.imwrite(str(fpath), crop)
-                saved_paths.append(str(fpath.as_posix()))
-                next_target = next(target_iter, None)
-            current_frame += 1
 
-        if len(saved_paths) < len(pending):
-            logger.warning(
-                "Tracklet %s: expected %d crops, saved %d (video has %d frames).",
-                tracklet.tracklet_id, len(pending), len(saved_paths), total,
-            )
+            saved_paths.append(str(fpath.as_posix()))
+
     finally:
         cap.release()
 
     return tracklet.model_copy(update={"crop_paths": saved_paths})
-
