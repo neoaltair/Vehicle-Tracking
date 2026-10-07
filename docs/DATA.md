@@ -20,19 +20,20 @@ This document records the official sources, licenses/terms, access procedures, l
 
 ---
 
-## 2. CityFlow / AI City Challenge Multi-Camera Tracking Dataset (M4–M6)
+## 2. CityFlowV2 / AI City Challenge Multi-Camera Tracking Dataset (M3–M6)
 
-- **Role:** Multi-camera vehicle search experiments, spatio-temporal camera transition graph estimation, candidate pruning evaluation, and test benchmarks.
+- **Role:** Primary research benchmark for multi-camera vehicle search, query/gallery construction, spatio-temporal camera transition graph estimation, candidate pruning evaluation, and test benchmarks.
 - **Source:** NVIDIA AI City Challenge / University of Washington (CityFlow Benchmark)
-- **Official URL:** [https://www.aicitychallenge.org/](https://www.aicitychallenge.org/)
+- **Official URL:** [https://www.aicitychallenge.org/2021-data-and-evaluation/](https://www.aicitychallenge.org/2021-data-and-evaluation/)
 - **License / Terms:** AI City Challenge Academic Research License Agreement (Non-commercial research use only; redistribution prohibited).
 - **Access Procedure:**
-  1. Register on [https://www.aicitychallenge.org/](https://www.aicitychallenge.org/) with an institutional / university email address.
+  1. Use the official AI City Challenge data access/download path for 2021 Track 3 / CityFlowV2.
   2. Accept the AI City Challenge Data License Agreement.
-  3. Download Track 1 / Track 3 multi-camera tracking dataset archives (`train.zip` containing synchronized multi-camera scenarios).
+  3. Download the Track 3 multi-camera tracking dataset archives.
+  4. Attach the extracted dataset to Kaggle as a private dataset, or upload the official archives and extract them in the Kaggle working directory.
 - **Expected Local Structure:**
   ```
-  data/raw/cityflow/
+  data/raw/cityflowv2/
   ├── train/
   │   ├── S01/
   │   │   ├── c001/
@@ -46,31 +47,18 @@ This document records the official sources, licenses/terms, access procedures, l
   ```
 - **Status:** **PENDING OWNER ACTION**
   > [!NOTE]
-  > Gated access requires owner acceptance of official terms. Automatic downloading or third-party mirrors without authorization are forbidden. Once placed in `data/raw/cityflow/`, the dataset loaders in `src/incident_search/io/` will parse camera calibration, synchronized timestamps, and ground-truth identities.
+  > Gated access requires owner acceptance of official terms. Automatic downloading or third-party mirrors without authorization are forbidden. Once placed in `data/raw/cityflowv2/` or attached under `/kaggle/input/...`, the M3 loaders can inspect camera folders and parse ground-truth identities.
 
 ---
 
-## 3. VeRi-776 Vehicle Re-Identification Dataset (M3 Baseline & Fallback)
+## 3. Secondary Datasets (Later, Not M3 Blockers)
 
-- **Role:** Re-ID baseline evaluation benchmark (M3) and vehicle camera graph fallback.
-- **Source:** Beijing University of Posts and Telecommunications (BUPT)
-- **Official URL:** [https://github.com/VehicleReId/VeRi](https://github.com/VehicleReId/VeRi)
-- **License / Terms:** Non-commercial Academic Research Use Only.
-- **Access Procedure:**
-  1. Send an email request to the authors (contact: `xinchenliu@bupt.edu.cn`).
-  2. State full name, affiliation, and non-commercial research purpose.
-  3. Receive official download credentials/link for `VeRi.zip`.
-- **Expected Local Structure:**
-  ```
-  data/raw/veri776/
-  ├── image_train/
-  ├── image_test/
-  ├── image_query/
-  ├── train_label.xml
-  ├── test_label.xml
-  └── jk_ground_truth.txt
-  ```
-- **Status:** **PENDING OWNER ACTION**
+- **RoundaboutHD:** External real-world validation after the CityFlowV2 pipeline is complete.
+- **VRIC:** Possible later appearance/Re-ID robustness benchmark.
+- **SimVeRi:** Possible controlled synthetic supplementary experiment.
+- **ACCIDENT/CADP:** Later incident-detection/application-layer datasets only.
+
+These datasets do not replace CityFlowV2 and should not block M3.
 
 ---
 
@@ -83,3 +71,6 @@ This document records the official sources, licenses/terms, access procedures, l
 - **Local Cache Path:** `outputs/weights/veri_sbs_R50-ibn.pth` (gitignored, downloaded automatically with checksum verification)
 - **Performance:** 97.0% Rank-1, 81.9% mAP on VeRi-776 benchmark
 - **Status:** **ACTIVE / VERIFIED** (HTTP 200, 198,261,759 bytes verified)
+
+The project uses these weights as a pretrained vehicle Re-ID model only. VeRi-776
+is not used as a project dataset or requested from the owner.

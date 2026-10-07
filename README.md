@@ -28,6 +28,7 @@ This system automates that upstream search:
 │   ├── DATA.md               # Dataset catalog, licenses, local paths, and access instructions
 │   ├── ARCHITECTURE.md       # Architectural diagram, schemas, and decisions log
 │   ├── EXPERIMENTS.md        # Protocol, splits, seeds, commands, and results
+│   ├── KAGGLE_M3.md          # Kaggle GPU workflow for CityFlowV2 smoke tests
 │   ├── LIMITATIONS_ETHICS.md # Limitations, ethics, and human-in-the-loop policies
 │   └── assets/               # Output figures, thumbnails, and sample frames
 ├── src/incident_search/
@@ -72,6 +73,16 @@ python scripts/retrieval_demo.py
 # Output: docs/assets/retrieval_demo_top5.png
 ```
 
+### 4. Inspect CityFlowV2 (M3, Dataset Required)
+
+```powershell
+python scripts/inspect_cityflow.py --root data/raw/cityflowv2 --max-cameras 5
+python scripts/run_m3_protocol_smoke.py --root data/raw/cityflowv2 --max-tracklets 500
+python scripts/run_m3_appearance_baseline.py --root data/raw/cityflowv2 --embedding-cache outputs/cache/embeddings
+```
+
+For Kaggle GPU execution, see [docs/KAGGLE_M3.md](docs/KAGGLE_M3.md).
+
 ---
 
 ## Milestone Progress
@@ -86,7 +97,14 @@ python scripts/retrieval_demo.py
   - Embedded all 6 demo tracklets (48 crops); per-tracklet `.npz` cache under `outputs/cache/embeddings/`.
   - Retrieval demo output: [retrieval_demo_top5.png](docs/assets/retrieval_demo_top5.png) — query `c001_trk0012` (96 frames) vs. gallery of 5; top-1 sim = 0.9860.
   - Docs added: [ARCHITECTURE.md](docs/ARCHITECTURE.md), [EXPERIMENTS.md](docs/EXPERIMENTS.md).
-- [ ] **M3: Data Loaders and Re-ID Baseline** — Multi-camera dataset loaders and validation baseline.
+- [x] **M3: CityFlowV2 Dataset and Retrieval Baseline** — GT tracklet loader, identity-disjoint splits, upstream cross-camera protocol, mAP/CMC evaluation, embedding extraction, Kaggle run guide.
+  - `src/incident_search/io/cityflow.py` — discovers CityFlow cameras, parses `gt.txt`, builds GT-derived `Tracklet` objects, extracts crops from video.
+  - `src/incident_search/eval/` — `protocol.py` (upstream eligible/positive masks, identity splits), `metrics.py` (mAP, CMC Rank-1/5/10, multi-positive), `baseline.py` (cosine score matrix, CSV writer).
+  - Scripts: `inspect_cityflow.py`, `run_m3_protocol_smoke.py`, `extract_m3_embeddings.py`, `run_m3_appearance_baseline.py`.
+  - Docs: `docs/KAGGLE_M3.md`, `docs/PRE_M3_AUDIT.md`, `docs/LIMITATIONS_ETHICS.md`.
+  - Tests: 21/21 pass including `test_cityflow_loader.py` (4 tests) and `test_eval_protocol.py` (5 tests).
+  - ⚠️ **Quantitative baseline pending** — requires CityFlowV2 data access (see `docs/DATA.md`). Run on Kaggle GPU following `docs/KAGGLE_M3.md`.
+
 - [ ] **M4: Camera Graph** — Directed camera transition graph with log-normal travel time priors.
 - [ ] **M5: Spatio-Temporal Search** — Candidate pruning and ranked retrieval evaluation.
 - [ ] **M6: Degradation Protocol** — Controlled quality degradation experiments (blur, downscale, occlusion).
