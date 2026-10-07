@@ -79,7 +79,7 @@ class EmbeddingRecord(BaseModel):
     embedding_dim: int = Field(default=2048, description="Feature embedding dimensionality")
     embedding_path: str | None = Field(
         default=None,
-        description="Path to saved .npy file storing frame and aggregated embeddings",
+        description="Path to saved .npz file storing frame and aggregated embeddings",
     )
 
 
