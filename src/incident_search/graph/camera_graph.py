@@ -66,7 +66,7 @@ class CameraTransitionGraph:
 
     graph: nx.DiGraph = field(default_factory=nx.DiGraph)
     edge_models: dict[tuple[str, str], EdgeTravelTimeModel] = field(default_factory=dict)
-    min_edge_samples: int = 2
+    min_edge_samples: int = 5
     max_travel_time_s: float = 3600.0  # Ignore transitions taking longer than 1 hour
 
     def add_transition(self, src_cam: str, dst_cam: str, delta_t: float) -> None:
@@ -177,7 +177,7 @@ def extract_transitions_from_tracklets(
 
 def build_camera_graph_from_training_tracklets(
     train_tracklets: list[Tracklet],
-    min_edge_samples: int = 2,
+    min_edge_samples: int = 5,
     max_transition_time_s: float = 3600.0,
 ) -> CameraTransitionGraph:
     """Build and fit a CameraTransitionGraph strictly from training tracklets.

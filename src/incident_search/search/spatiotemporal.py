@@ -36,6 +36,7 @@ def build_graph_prior_matrix(
     n_g = len(gallery)
     priors = np.zeros((n_q, n_g), dtype=np.float32)
     connected = np.zeros((n_q, n_g), dtype=bool)
+    topology_connected = np.zeros((n_q, n_g), dtype=bool)
 
     for i, q in enumerate(queries):
         for j, g in enumerate(gallery):
@@ -50,13 +51,17 @@ def build_graph_prior_matrix(
             if dt <= 0:
                 continue
 
+            # Check if camera topology edge exists (u -> v)
+            if camera_graph.has_edge(g.camera_id, q.camera_id):
+                topology_connected[i, j] = True
+
             # Upstream transition: candidate camera -> query camera
             prob = camera_graph.get_prior(g.camera_id, q.camera_id, dt)
             priors[i, j] = prob
             if prob > min_prob:
                 connected[i, j] = True
 
-    return priors, connected
+    return priors, connected, topology_connected
 
 
 def compute_fused_scores(
