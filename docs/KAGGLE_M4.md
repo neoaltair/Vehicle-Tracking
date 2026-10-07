@@ -1,78 +1,93 @@
-# Kaggle M4 Workflow: Spatio-Temporal Prior Evaluation
+# Kaggle M4 Frozen Research Evaluation Workflow
 
-This document details running the M4 camera-transition graph and travel-time spatio-temporal prior evaluation on Kaggle GPU/CPU.
-
-The M3 appearance-only baseline is **frozen**:
+This document details the exact, reproducible workflow to run M4 on Kaggle GPU/CPU.
+The M3 appearance-only baseline is **strictly frozen**:
 - **mAP**: 26.6684%
 - **Rank-1**: 40.2660%
 - **Rank-5**: 54.9468%
 - **Rank-10**: 62.3404%
-- **GT tracklets**: 3029
-- **Evaluation queries**: 1880
+- **GT tracklets**: 3,029
+- **Evaluation queries**: 1,880
 
 ---
 
 ## 1. Setup & Environment
 
-Ensure you are in the repository root with dependencies installed:
+Pull the latest repository on Kaggle and install dependencies:
 
 ```bash
 !git pull origin main
 !pip install -e ".[dev]"
 ```
 
-Set the CityFlowV2 path:
+Define paths:
 ```bash
 CITYFLOW_ROOT=/kaggle/input/<your-cityflow-dataset>/<cityflow-root>
 ```
 
 ---
 
-## 2. Temporal Synchronization Verification (Important Pre-Check)
+## 2. Step 1: Validation-Only Hyperparameter Selection
 
-Before relying heavily on fine-grained time bounds, inspect the camera time offsets in CityFlow:
-
-```bash
-!python scripts/inspect_cityflow.py \
-  --root "$CITYFLOW_ROOT" \
-  --out outputs/m4_inspect/camera_sync_summary.json
-```
-
-CityFlow scenario cameras are recorded across distinct intersections. If timestamps are frame-based without GPS absolute sync offsets, cross-scenario transitions are uninformative. Our `CameraTransitionGraph` automatically filters transitions exceeding `max_travel_time_s` (1 hour) and requires `min_edge_samples >= 2` observed on training identities.
-
----
-
-## 3. Run M4 Spatio-Temporal Prior Evaluation
-
-Once the embeddings are cached (from M3), execute the M4 evaluation:
+Run grid search across $\alpha \in \{0.05, 0.10, 0.20\}$ and time window $T \in \{60, 120, 300, 600\}\text{s}$ **strictly using validation identities** (`splits.val`):
 
 ```bash
-!python scripts/run_m4_spatiotemporal.py \
+!python scripts/tune_m4_hyperparameters.py \
   --root "$CITYFLOW_ROOT" \
   --embedding-cache outputs/cache/embeddings \
-  --m3-summary outputs/m3_appearance/summary.json \
-  --time-window-s 300.0 \
-  --alpha 0.1 \
-  --out-dir outputs/m4_spatiotemporal
+  --min-edge-samples 5 \
+  --out-dir outputs/m4_validation
 ```
 
-### Outputs Produced:
-- `outputs/m4_spatiotemporal/summary.json`: mAP, Rank-1, Rank-5, Rank-10, candidate reduction, and true-match survival.
-- `outputs/m4_spatiotemporal/comparison.json`: Direct comparison table against frozen M3 baseline with delta metrics.
-- `outputs/m4_spatiotemporal/per_query_results.csv`: Per-query retrieval ranks and AP.
+Outputs:
+- `outputs/m4_validation/val_grid_results.json`
+- `outputs/m4_validation/best_config.json` (frozen parameter choice)
 
 ---
 
-## 4. Hyperparameter Ablation on Validation (alpha & window)
+## 3. Step 2: Full M4 Ablation & Test Evaluation
 
-To evaluate sensitivity to the prior weight `alpha` and time window `T`:
+Run all 4 ablations on the **test split only** using the frozen best parameters from Step 1:
 
 ```bash
-for a in 0.05 0.1 0.2; do
-  python scripts/run_m4_spatiotemporal.py \
-    --root "$CITYFLOW_ROOT" \
-    --embedding-cache outputs/cache/embeddings \
-    --alpha $a \
-    --out-dir outputs/m4_spatiotemporal/alpha_$a
-done
+!python scripts/run_m4_ablation_study.py \
+  --root "$CITYFLOW_ROOT" \
+  --embedding-cache outputs/cache/embeddings \
+  --best-config outputs/m4_validation/best_config.json \
+  --min-edge-samples 5 \
+  --out-dir outputs/m4_ablation
 ```
+
+This evaluates:
+1. **Appearance only** (Method A)
+2. **Appearance + fixed time window** (Method B)
+3. **Appearance + camera topology** (Method B + topology filtering)
+4. **Appearance + topology + travel-time prior** (Method C, full spatio-temporal)
+
+Outputs:
+- `outputs/m4_ablation/ablation_summary.json` (mAP, Rank-1/5/10, candidate reduction, true-match survival for each ablation)
+- `outputs/m4_ablation/test_final_results.json` (Final frozen test results)
+- `outputs/m4_ablation/final_test_per_query.csv`
+
+---
+
+## 4. Step 3: Controlled Query Degradation Study
+
+Evaluate the robustness of Appearance-only vs. Spatio-Temporal retrieval on the test set under controlled query degradations:
+- **Downscaling**: factors $\{1.0, 0.5, 0.25, 0.125\}$
+- **Gaussian blur**: $\sigma \in \{0.0, 1.0, 2.0, 4.0\}$
+- **Crop**: area retention $\{1.0, 0.75, 0.50, 0.25\}$
+- **Occlusion**: ratios $\{0.0, 0.25, 0.50\}$ across seeds $\{0, 1, 2\}$
+
+```bash
+!python scripts/run_m4_degradation_study.py \
+  --root "$CITYFLOW_ROOT" \
+  --embedding-cache outputs/cache/embeddings \
+  --weights outputs/weights/veri_sbs_R50-ibn.pth \
+  --time-window-s 300.0 \
+  --alpha 0.10 \
+  --out-dir outputs/m4_degradation
+```
+
+Outputs:
+- `outputs/m4_degradation/degradation_results.json` (Mean +/- std for all degradation families and severity levels)

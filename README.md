@@ -105,12 +105,17 @@ For Kaggle GPU execution, see [docs/KAGGLE_M3.md](docs/KAGGLE_M3.md).
   - Tests: 21/21 pass including `test_cityflow_loader.py` (4 tests) and `test_eval_protocol.py` (5 tests).
   - ⚠️ **Quantitative baseline pending** — requires CityFlowV2 data access (see `docs/DATA.md`). Run on Kaggle GPU following `docs/KAGGLE_M3.md`.
 
-- [x] **M4: Camera Graph & Spatio-Temporal Prior** — Directed camera transition graph with log-normal travel time priors, leakage prevention, fused scoring, candidate filtering, and comparison against frozen M3 baseline.
-  - `src/incident_search/graph/camera_graph.py` — `CameraTransitionGraph` and `EdgeTravelTimeModel` fitted strictly on training identities (`splits.train`).
-  - `src/incident_search/search/spatiotemporal.py` — Prior matrix computation, connectivity masking, and fused scoring ($\text{score} = \text{appearance} + \alpha \cdot \text{prior}$).
-  - Scripts: `scripts/run_m4_spatiotemporal.py` (evaluates M4 and directly contrasts with frozen M3 baseline), `docs/KAGGLE_M4.md` (Kaggle run guide).
-  - Tests: 25/25 pass with unit tests verifying graph construction, travel-time modeling, identity isolation, and candidate filtering.
-  - Frozen M3 Baseline recorded: mAP 26.6684%, Rank-1 40.2660%, Rank-5 54.9468%, Rank-10 62.3404%.
+- [x] **M4: Camera Graph & Spatio-Temporal Prior (Frozen)** — Directed camera transition graph with log-normal travel time priors, leakage prevention, validation-only parameter tuning, ablation study, and controlled degradation evaluation.
+  - `src/incident_search/graph/camera_graph.py` — `CameraTransitionGraph` and `EdgeTravelTimeModel` fitted strictly on training identities (`splits.train`) with minimum 5 edge transitions.
+  - `src/incident_search/search/spatiotemporal.py` — Prior matrix computation, topology & connectivity masking, and fused scoring ($\text{score} = \text{appearance} + \alpha \cdot \text{prior}$).
+  - `src/incident_search/degrade/transforms.py` — Deterministic query image degradations (downscaling, Gaussian blur, central cropping, occlusion).
+  - Scripts:
+    - `scripts/tune_m4_hyperparameters.py` (validation grid search for $\alpha \in \{0.05, 0.10, 0.20\}$ and $T \in \{60, 120, 300, 600\}\text{s}$).
+    - `scripts/run_m4_ablation_study.py` (4 ablations: appearance-only, +time window, +topology, +travel-time prior on frozen test set).
+    - `scripts/run_m4_degradation_study.py` (degraded query evaluation).
+    - `docs/KAGGLE_M4.md` (reproducible Kaggle execution pipeline).
+  - Tests: 29/29 pass including tests for identity-disjoint isolation, temporal filtering, survival metric, validation tuning, and degradation transforms.
+  - Frozen M3 Baseline preserved: mAP 26.6684%, Rank-1 40.2660%, Rank-5 54.9468%, Rank-10 62.3404%.
 
 - [ ] **M5: Spatio-Temporal Search** — Candidate pruning and ranked retrieval evaluation.
 - [ ] **M6: Degradation Protocol** — Controlled quality degradation experiments (blur, downscale, occlusion).

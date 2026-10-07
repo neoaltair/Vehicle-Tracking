@@ -245,6 +245,7 @@ def save_tracklet_crops(
 ) -> Tracklet:
     """Extract up to k quality-sampled GT crops using direct frame seeking."""
     import logging
+
     import cv2
     import numpy as np
 

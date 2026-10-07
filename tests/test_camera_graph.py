@@ -111,10 +111,11 @@ def test_spatiotemporal_prior_matrix_and_fused_scores():
     graph.add_transition("c001", "c002", 15.0)
     graph.fit_models()
 
-    priors, connected = build_graph_prior_matrix([query], [cand], graph)
+    priors, connected, topology = build_graph_prior_matrix([query], [cand], graph)
     assert priors.shape == (1, 1)
     assert priors[0, 0] > 0.0
     assert connected[0, 0]
+    assert topology[0, 0]
 
     # Fused score
     app_scores = np.array([[0.8]], dtype=np.float32)
