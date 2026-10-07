@@ -105,7 +105,13 @@ For Kaggle GPU execution, see [docs/KAGGLE_M3.md](docs/KAGGLE_M3.md).
   - Tests: 21/21 pass including `test_cityflow_loader.py` (4 tests) and `test_eval_protocol.py` (5 tests).
   - ⚠️ **Quantitative baseline pending** — requires CityFlowV2 data access (see `docs/DATA.md`). Run on Kaggle GPU following `docs/KAGGLE_M3.md`.
 
-- [ ] **M4: Camera Graph** — Directed camera transition graph with log-normal travel time priors.
+- [x] **M4: Camera Graph & Spatio-Temporal Prior** — Directed camera transition graph with log-normal travel time priors, leakage prevention, fused scoring, candidate filtering, and comparison against frozen M3 baseline.
+  - `src/incident_search/graph/camera_graph.py` — `CameraTransitionGraph` and `EdgeTravelTimeModel` fitted strictly on training identities (`splits.train`).
+  - `src/incident_search/search/spatiotemporal.py` — Prior matrix computation, connectivity masking, and fused scoring ($\text{score} = \text{appearance} + \alpha \cdot \text{prior}$).
+  - Scripts: `scripts/run_m4_spatiotemporal.py` (evaluates M4 and directly contrasts with frozen M3 baseline), `docs/KAGGLE_M4.md` (Kaggle run guide).
+  - Tests: 25/25 pass with unit tests verifying graph construction, travel-time modeling, identity isolation, and candidate filtering.
+  - Frozen M3 Baseline recorded: mAP 26.6684%, Rank-1 40.2660%, Rank-5 54.9468%, Rank-10 62.3404%.
+
 - [ ] **M5: Spatio-Temporal Search** — Candidate pruning and ranked retrieval evaluation.
 - [ ] **M6: Degradation Protocol** — Controlled quality degradation experiments (blur, downscale, occlusion).
 - [ ] **M7: Incident Detection** — Kinematic rule-based detector connected to search trigger.

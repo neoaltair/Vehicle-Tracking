@@ -122,13 +122,39 @@ Visual result: `docs/assets/retrieval_demo_top5.png`
 
 ---
 
+## M3 Frozen Baseline Results (CityFlowV2 Ground-Truth Tracklets)
+
+The appearance-only baseline (Method A) was evaluated on 3,029 GT tracklets across 1,880 evaluation queries using FastReID SBS(R50-ibn) embeddings:
+
+| Metric | M3 Value | Description |
+|---|---|---|
+| **mAP** | **26.6684%** | Mean Average Precision across all queries |
+| **Rank-1** | **40.2660%** | Top-1 retrieval accuracy |
+| **Rank-5** | **54.9468%** | Top-5 retrieval accuracy |
+| **Rank-10** | **62.3404%** | Top-10 retrieval accuracy |
+| **Queries** | 1,880 | Valid cross-camera upstream queries |
+| **GT Tracklets** | 3,029 | Full evaluation pool |
+
+This baseline serves as the frozen reference point for all subsequent spatio-temporal and degradation comparisons.
+
+---
+
+## M4 Spatio-Temporal Prior Protocol
+
+1. **Camera Graph Estimation:** Directed graph constructed strictly from the training split identities (`splits.train`, 60% of identities).
+2. **Travel-Time Models:** Empirical log-normal distributions fitted for edges with $\ge 2$ observed transitions.
+3. **Candidate Filtering & Ranking:** Upstream cross-camera candidates are scored using:
+   $$\text{Score} = \text{CosineSim}(q, c) + \alpha \cdot \frac{P(u \to v, \Delta t)}{\max P}$$
+4. **Metrics Tracked:** mAP, Rank-1, Rank-5, Rank-10, candidate search-space reduction (`pruning_reduction`), and true-match survival (`true_match_survival`).
+
+---
+
 ## Planned Experiment Schedule
 
-| Milestone | Experiment | Dataset Required |
+| Milestone | Experiment | Status |
 |---|---|---|
-| M2 | Qualitative retrieval demo (complete) | Demo video |
-| M3 | Dataset loaders, identity-disjoint splits, GT observation representation | CityFlowV2 |
-| M3 | Appearance-only baseline: mAP, CMC R1/5, metric protocol verification | CityFlowV2 |
-| M4 | Training-only camera graph and travel-time prior estimation | CityFlowV2 |
-| M5 | Methods A-D: pruning, ranking, candidate counts, true-match survival | CityFlowV2 |
-| M6 | Final degradation study: all methods x all degradation families | CityFlowV2 |
+| M2 | Qualitative retrieval demo | Complete |
+| M3 | Appearance-only baseline on CityFlowV2 | **Complete (Frozen: mAP 26.67%, R1 40.27%)** |
+| M4 | Training-only camera graph & travel-time prior | **Implemented & Tested** |
+| M5 | Multi-stage spatio-temporal search & tracklet aggregation | Planned |
+| M6 | Final degradation study: all methods x all degradation families | Planned |
