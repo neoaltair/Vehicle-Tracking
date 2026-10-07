@@ -1,0 +1,26 @@
+# M3 CityFlowV2 dataset/protocol configuration.
+
+dataset:
+  name: "cityflowv2"
+  root: "data/raw/cityflowv2"
+  default_fps: 10.0
+  min_gt_tracklet_frames: 2
+
+split:
+  train_fraction: 0.6
+  val_fraction: 0.2
+  seed: 0
+
+protocol:
+  direction: "upstream"
+  exclude_same_camera: true
+  time_window_s: 300.0
+
+runtime:
+  device: "cuda"
+  allow_cpu_fallback: false
+  max_cameras: null
+  max_tracklets: null
+
+outputs:
+  root: "outputs/m3_cityflow"

@@ -15,7 +15,7 @@ tracker:
 reid:
   model_name: "sbs_R50-ibn"
   weights_url: "https://github.com/JDAI-CV/fast-reid/releases/download/v0.1.1/veri_sbs_R50-ibn.pth"
-  weights_path: "weights/veri_sbs_R50-ibn.pth"
+  weights_path: "outputs/weights/veri_sbs_R50-ibn.pth"
   aggregation: "mean"  # "single" or "mean"
   embedding_dim: 2048
   device: "cpu"

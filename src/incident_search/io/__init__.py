@@ -1,5 +1,14 @@
 """Input/Output and schema definitions."""
 
+from incident_search.io.cityflow import (
+    CityFlowCamera,
+    CityFlowDetection,
+    discover_cityflow_cameras,
+    gt_detections_to_tracklets,
+    load_cityflow_gt_tracklets,
+    parse_cityflow_gt,
+    save_tracklet_crops,
+)
 from incident_search.io.schema import (
     Camera,
     EmbeddingRecord,
@@ -13,6 +22,13 @@ from incident_search.io.schema import (
 )
 
 __all__ = [
+    "CityFlowCamera",
+    "CityFlowDetection",
+    "discover_cityflow_cameras",
+    "gt_detections_to_tracklets",
+    "load_cityflow_gt_tracklets",
+    "parse_cityflow_gt",
+    "save_tracklet_crops",
     "Camera",
     "Tracklet",
     "EmbeddingRecord",
