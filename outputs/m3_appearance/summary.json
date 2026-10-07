@@ -1,0 +1,10 @@
+{
+  "num_tracklets": 3029,
+  "num_queries": 1880,
+  "mAP": 0.26668402654977996,
+  "rank1": 0.4026595744680851,
+  "rank5": 0.549468085106383,
+  "rank10": 0.6234042553191489,
+  "embedding_cache": "outputs/cache/embeddings",
+  "model_name": "sbs_R50-ibn"
+}

@@ -143,7 +143,7 @@ def main() -> int:
 
     # 3. Load FastReID model
     log.info("Loading FastReID model from %s", args.weights)
-    extractor = FastReIDExtractor(args.weights)
+    extractor = FastReIDExtractor(args.weights, device="cuda")
 
     # 4. Extract crops + embed
     n_cropped = 0
