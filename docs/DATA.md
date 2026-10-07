@@ -45,9 +45,14 @@ This document records the official sources, licenses/terms, access procedures, l
   │   ├── S03/
   │   └── S04/
   ```
-- **Status:** **PENDING OWNER ACTION**
+- **Status:** **ACTIVE IN BENCHMARK PIPELINE**
   > [!NOTE]
-  > Gated access requires owner acceptance of official terms. Automatic downloading or third-party mirrors without authorization are forbidden. Once placed in `data/raw/cityflowv2/` or attached under `/kaggle/input/...`, the M3 loaders can inspect camera folders and parse ground-truth identities.
+  > **Camera Timestamp Synchronization & Offset Analysis:**
+  > CityFlow cameras are grouped under distinct scenarios (e.g. `S01`, `S03`, `S04`). Within each scenario, cameras operate at an estimated nominal framerate (e.g., 10.0 FPS). While cameras within a single intersection/corridor share a synchronized recording origin, cross-scenario or uncalibrated streams can exhibit drift or independent start clocks.
+  > In our design:
+  > 1. Timestamps default to `(frame_id - 1) / fps + time_offset_s`.
+  > 2. The `CameraTransitionGraph` isolates transitions strictly between cameras sharing observed valid transitions on training identities within `max_travel_time_s` (<= 3600s), filtering uncoupled cross-scenario timing noise.
+  > 3. If exact GPS synchronization offsets are absent, soft travel-time log-normal density re-ranking is preferred over hard threshold truncation.
 
 ---
 
