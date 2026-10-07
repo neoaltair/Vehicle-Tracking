@@ -1,0 +1,11 @@
+{
+  "time_window_s": 60.0,
+  "alpha": 0.05,
+  "val_mAP": 0.581095,
+  "val_rank1": 0.522167,
+  "val_rank5": 0.938424,
+  "val_rank10": 0.963054,
+  "val_reduction": 0.498852,
+  "val_survival": 0.990244,
+  "num_queries": 406
+}

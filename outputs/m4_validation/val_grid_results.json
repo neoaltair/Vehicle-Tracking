@@ -1,0 +1,134 @@
+[
+  {
+    "time_window_s": 60.0,
+    "alpha": 0.05,
+    "val_mAP": 0.581095,
+    "val_rank1": 0.522167,
+    "val_rank5": 0.938424,
+    "val_rank10": 0.963054,
+    "val_reduction": 0.498852,
+    "val_survival": 0.990244,
+    "num_queries": 406
+  },
+  {
+    "time_window_s": 60.0,
+    "alpha": 0.1,
+    "val_mAP": 0.567935,
+    "val_rank1": 0.509852,
+    "val_rank5": 0.933498,
+    "val_rank10": 0.963054,
+    "val_reduction": 0.498852,
+    "val_survival": 0.990244,
+    "num_queries": 406
+  },
+  {
+    "time_window_s": 60.0,
+    "alpha": 0.2,
+    "val_mAP": 0.560982,
+    "val_rank1": 0.509852,
+    "val_rank5": 0.933498,
+    "val_rank10": 0.963054,
+    "val_reduction": 0.498852,
+    "val_survival": 0.990244,
+    "num_queries": 406
+  },
+  {
+    "time_window_s": 120.0,
+    "alpha": 0.05,
+    "val_mAP": 0.545003,
+    "val_rank1": 0.512195,
+    "val_rank5": 0.917073,
+    "val_rank10": 0.946341,
+    "val_reduction": 0.274014,
+    "val_survival": 1.0,
+    "num_queries": 410
+  },
+  {
+    "time_window_s": 120.0,
+    "alpha": 0.1,
+    "val_mAP": 0.531538,
+    "val_rank1": 0.5,
+    "val_rank5": 0.904878,
+    "val_rank10": 0.95122,
+    "val_reduction": 0.274014,
+    "val_survival": 1.0,
+    "num_queries": 410
+  },
+  {
+    "time_window_s": 120.0,
+    "alpha": 0.2,
+    "val_mAP": 0.524608,
+    "val_rank1": 0.5,
+    "val_rank5": 0.902439,
+    "val_rank10": 0.95122,
+    "val_reduction": 0.274014,
+    "val_survival": 1.0,
+    "num_queries": 410
+  },
+  {
+    "time_window_s": 300.0,
+    "alpha": 0.05,
+    "val_mAP": 0.515232,
+    "val_rank1": 0.512195,
+    "val_rank5": 0.904878,
+    "val_rank10": 0.939024,
+    "val_reduction": 0.030361,
+    "val_survival": 1.0,
+    "num_queries": 410
+  },
+  {
+    "time_window_s": 300.0,
+    "alpha": 0.1,
+    "val_mAP": 0.502692,
+    "val_rank1": 0.5,
+    "val_rank5": 0.895122,
+    "val_rank10": 0.946341,
+    "val_reduction": 0.030361,
+    "val_survival": 1.0,
+    "num_queries": 410
+  },
+  {
+    "time_window_s": 300.0,
+    "alpha": 0.2,
+    "val_mAP": 0.49667,
+    "val_rank1": 0.5,
+    "val_rank5": 0.890244,
+    "val_rank10": 0.943902,
+    "val_reduction": 0.030361,
+    "val_survival": 1.0,
+    "num_queries": 410
+  },
+  {
+    "time_window_s": 600.0,
+    "alpha": 0.05,
+    "val_mAP": 0.512426,
+    "val_rank1": 0.512195,
+    "val_rank5": 0.904878,
+    "val_rank10": 0.939024,
+    "val_reduction": 0.0,
+    "val_survival": 1.0,
+    "num_queries": 410
+  },
+  {
+    "time_window_s": 600.0,
+    "alpha": 0.1,
+    "val_mAP": 0.49999,
+    "val_rank1": 0.5,
+    "val_rank5": 0.895122,
+    "val_rank10": 0.946341,
+    "val_reduction": 0.0,
+    "val_survival": 1.0,
+    "num_queries": 410
+  },
+  {
+    "time_window_s": 600.0,
+    "alpha": 0.2,
+    "val_mAP": 0.494031,
+    "val_rank1": 0.5,
+    "val_rank5": 0.890244,
+    "val_rank10": 0.943902,
+    "val_reduction": 0.0,
+    "val_survival": 1.0,
+    "num_queries": 410
+  }
+]

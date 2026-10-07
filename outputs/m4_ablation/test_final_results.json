@@ -1,0 +1,10 @@
+{
+  "method": "appearance_topology_travel_time_prior",
+  "mAP": 0.579427,
+  "rank1": 0.561881,
+  "rank5": 0.955446,
+  "rank10": 0.982673,
+  "candidate_reduction": 0.510106,
+  "true_match_survival": 0.997531,
+  "num_queries": 404
+}

@@ -1,0 +1,59 @@
+{
+  "milestone": "M4",
+  "status": "FINAL",
+  "dataset_root": "/content/cityflow",
+  "embedding_cache": "outputs/cache/embeddings",
+  "embedding_count": 3029,
+  "reid": {
+    "model": "FastReID SBS(R50-ibn)",
+    "training_dataset": "VeRi-776",
+    "checkpoint": "outputs/weights/veri_sbs_R50-ibn.pth"
+  },
+  "protocol": {
+    "identity_split": "60/20/20 train/validation/test",
+    "graph_min_edge_samples": 5,
+    "hyperparameter_selection": "validation only",
+    "test_configuration_frozen": true,
+    "same_camera_matches_excluded": true,
+    "future_candidates_excluded": true,
+    "multiple_positives_supported": true
+  },
+  "selected_configuration": {
+    "time_window_s": 60.0,
+    "alpha": 0.05,
+    "val_mAP": 0.581095,
+    "val_rank1": 0.522167,
+    "val_rank5": 0.938424,
+    "val_rank10": 0.963054,
+    "val_reduction": 0.498852,
+    "val_survival": 0.990244,
+    "num_queries": 406
+  },
+  "m3_appearance_baseline": {
+    "mAP": 0.26668402654977996,
+    "rank1": 0.4026595744680851,
+    "rank5": 0.549468085106383,
+    "rank10": 0.6234042553191489,
+    "num_queries": 1880,
+    "num_tracklets": 3029
+  },
+  "artifacts": {
+    "validation_grid": "outputs/m4_validation/val_grid_results.json",
+    "best_config": "outputs/m4_validation/best_config.json",
+    "test_ablation_summary": "outputs/m4_ablation/ablation_summary.json",
+    "test_final_results": "outputs/m4_ablation/test_final_results.json",
+    "test_per_query": "outputs/m4_ablation/final_test_per_query.csv",
+    "degradation": "outputs/m4_degradation/",
+    "cityflow_inspection": "outputs/m4_cityflow_inspection.json"
+  },
+  "completion_checks": {
+    "fastreid_available": true,
+    "m3_embeddings_verified": true,
+    "ruff_passed": true,
+    "pytest_passed": true,
+    "validation_grid_completed": true,
+    "frozen_test_ablation_completed": true,
+    "degradation_study_completed": true,
+    "cityflow_inspection_completed": true
+  }
+}

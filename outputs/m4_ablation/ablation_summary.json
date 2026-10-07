@@ -1,0 +1,42 @@
+{
+  "appearance_only": {
+    "method": "appearance_only",
+    "mAP": 0.39222,
+    "rank1": 0.523457,
+    "rank5": 0.71358,
+    "rank10": 0.77037,
+    "candidate_reduction": 0.0,
+    "true_match_survival": 1.0,
+    "num_queries": 405
+  },
+  "appearance_plus_window": {
+    "method": "appearance_plus_window",
+    "mAP": 0.485717,
+    "rank1": 0.559406,
+    "rank5": 0.814356,
+    "rank10": 0.866337,
+    "candidate_reduction": 0.510106,
+    "true_match_survival": 0.997531,
+    "num_queries": 404
+  },
+  "appearance_plus_topology": {
+    "method": "appearance_plus_topology",
+    "mAP": 0.751924,
+    "rank1": 0.653333,
+    "rank5": 0.926667,
+    "rank10": 0.98,
+    "candidate_reduction": 0.952402,
+    "true_match_survival": 0.740741,
+    "num_queries": 300
+  },
+  "appearance_topology_travel_time_prior": {
+    "method": "appearance_topology_travel_time_prior",
+    "mAP": 0.579427,
+    "rank1": 0.561881,
+    "rank5": 0.955446,
+    "rank10": 0.982673,
+    "candidate_reduction": 0.510106,
+    "true_match_survival": 0.997531,
+    "num_queries": 404
+  }
+}

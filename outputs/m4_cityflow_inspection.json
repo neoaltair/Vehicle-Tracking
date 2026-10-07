@@ -1,0 +1,660 @@
+{
+  "root": "/content/cityflow",
+  "num_discovered_cameras": 65,
+  "num_inspected_cameras": 65,
+  "num_gt_detections_in_inspected_cameras": 253374,
+  "num_gt_tracklets_all_cameras": 3037,
+  "num_gt_identities_all_cameras": 666,
+  "cameras": [
+    {
+      "scenario_id": "S06",
+      "camera_id": "c041",
+      "root": "/content/cityflow/test/S06/c041",
+      "video_path": "/content/cityflow/test/S06/c041/vdo.avi",
+      "gt_path": null,
+      "fps": 10.0,
+      "num_detections": 0,
+      "num_gt_ids": 0
+    },
+    {
+      "scenario_id": "S06",
+      "camera_id": "c042",
+      "root": "/content/cityflow/test/S06/c042",
+      "video_path": "/content/cityflow/test/S06/c042/vdo.avi",
+      "gt_path": null,
+      "fps": 10.0,
+      "num_detections": 0,
+      "num_gt_ids": 0
+    },
+    {
+      "scenario_id": "S06",
+      "camera_id": "c043",
+      "root": "/content/cityflow/test/S06/c043",
+      "video_path": "/content/cityflow/test/S06/c043/vdo.avi",
+      "gt_path": null,
+      "fps": 10.0,
+      "num_detections": 0,
+      "num_gt_ids": 0
+    },
+    {
+      "scenario_id": "S06",
+      "camera_id": "c044",
+      "root": "/content/cityflow/test/S06/c044",
+      "video_path": "/content/cityflow/test/S06/c044/vdo.avi",
+      "gt_path": null,
+      "fps": 10.0,
+      "num_detections": 0,
+      "num_gt_ids": 0
+    },
+    {
+      "scenario_id": "S06",
+      "camera_id": "c045",
+      "root": "/content/cityflow/test/S06/c045",
+      "video_path": "/content/cityflow/test/S06/c045/vdo.avi",
+      "gt_path": null,
+      "fps": 10.0,
+      "num_detections": 0,
+      "num_gt_ids": 0
+    },
+    {
+      "scenario_id": "S06",
+      "camera_id": "c046",
+      "root": "/content/cityflow/test/S06/c046",
+      "video_path": "/content/cityflow/test/S06/c046/vdo.avi",
+      "gt_path": null,
+      "fps": 10.0,
+      "num_detections": 0,
+      "num_gt_ids": 0
+    },
+    {
+      "scenario_id": "S01",
+      "camera_id": "c001",
+      "root": "/content/cityflow/train/S01/c001",
+      "video_path": "/content/cityflow/train/S01/c001/vdo.avi",
+      "gt_path": "/content/cityflow/train/S01/c001/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 3312,
+      "num_gt_ids": 77
+    },
+    {
+      "scenario_id": "S01",
+      "camera_id": "c002",
+      "root": "/content/cityflow/train/S01/c002",
+      "video_path": "/content/cityflow/train/S01/c002/vdo.avi",
+      "gt_path": "/content/cityflow/train/S01/c002/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 6324,
+      "num_gt_ids": 75
+    },
+    {
+      "scenario_id": "S01",
+      "camera_id": "c003",
+      "root": "/content/cityflow/train/S01/c003",
+      "video_path": "/content/cityflow/train/S01/c003/vdo.avi",
+      "gt_path": "/content/cityflow/train/S01/c003/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 6680,
+      "num_gt_ids": 82
+    },
+    {
+      "scenario_id": "S01",
+      "camera_id": "c004",
+      "root": "/content/cityflow/train/S01/c004",
+      "video_path": "/content/cityflow/train/S01/c004/vdo.avi",
+      "gt_path": "/content/cityflow/train/S01/c004/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 6016,
+      "num_gt_ids": 81
+    },
+    {
+      "scenario_id": "S01",
+      "camera_id": "c005",
+      "root": "/content/cityflow/train/S01/c005",
+      "video_path": "/content/cityflow/train/S01/c005/vdo.avi",
+      "gt_path": "/content/cityflow/train/S01/c005/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 12205,
+      "num_gt_ids": 94
+    },
+    {
+      "scenario_id": "S03",
+      "camera_id": "c010",
+      "root": "/content/cityflow/train/S03/c010",
+      "video_path": "/content/cityflow/train/S03/c010/vdo.avi",
+      "gt_path": "/content/cityflow/train/S03/c010/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 2097,
+      "num_gt_ids": 14
+    },
+    {
+      "scenario_id": "S03",
+      "camera_id": "c011",
+      "root": "/content/cityflow/train/S03/c011",
+      "video_path": "/content/cityflow/train/S03/c011/vdo.avi",
+      "gt_path": "/content/cityflow/train/S03/c011/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 1192,
+      "num_gt_ids": 17
+    },
+    {
+      "scenario_id": "S03",
+      "camera_id": "c012",
+      "root": "/content/cityflow/train/S03/c012",
+      "video_path": "/content/cityflow/train/S03/c012/vdo.avi",
+      "gt_path": "/content/cityflow/train/S03/c012/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 2060,
+      "num_gt_ids": 17
+    },
+    {
+      "scenario_id": "S03",
+      "camera_id": "c013",
+      "root": "/content/cityflow/train/S03/c013",
+      "video_path": "/content/cityflow/train/S03/c013/vdo.avi",
+      "gt_path": "/content/cityflow/train/S03/c013/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 1011,
+      "num_gt_ids": 17
+    },
+    {
+      "scenario_id": "S03",
+      "camera_id": "c014",
+      "root": "/content/cityflow/train/S03/c014",
+      "video_path": "/content/cityflow/train/S03/c014/vdo.avi",
+      "gt_path": "/content/cityflow/train/S03/c014/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 3569,
+      "num_gt_ids": 14
+    },
+    {
+      "scenario_id": "S03",
+      "camera_id": "c015",
+      "root": "/content/cityflow/train/S03/c015",
+      "video_path": "/content/cityflow/train/S03/c015/vdo.avi",
+      "gt_path": "/content/cityflow/train/S03/c015/gt/gt.txt",
+      "fps": 8.0,
+      "num_detections": 19,
+      "num_gt_ids": 1
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c016",
+      "root": "/content/cityflow/train/S04/c016",
+      "video_path": "/content/cityflow/train/S04/c016/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c016/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 710,
+      "num_gt_ids": 7
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c017",
+      "root": "/content/cityflow/train/S04/c017",
+      "video_path": "/content/cityflow/train/S04/c017/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c017/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 356,
+      "num_gt_ids": 6
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c018",
+      "root": "/content/cityflow/train/S04/c018",
+      "video_path": "/content/cityflow/train/S04/c018/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c018/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 343,
+      "num_gt_ids": 7
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c019",
+      "root": "/content/cityflow/train/S04/c019",
+      "video_path": "/content/cityflow/train/S04/c019/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c019/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 399,
+      "num_gt_ids": 8
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c020",
+      "root": "/content/cityflow/train/S04/c020",
+      "video_path": "/content/cityflow/train/S04/c020/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c020/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 452,
+      "num_gt_ids": 7
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c021",
+      "root": "/content/cityflow/train/S04/c021",
+      "video_path": "/content/cityflow/train/S04/c021/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c021/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 452,
+      "num_gt_ids": 6
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c022",
+      "root": "/content/cityflow/train/S04/c022",
+      "video_path": "/content/cityflow/train/S04/c022/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c022/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 614,
+      "num_gt_ids": 7
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c023",
+      "root": "/content/cityflow/train/S04/c023",
+      "video_path": "/content/cityflow/train/S04/c023/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c023/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 639,
+      "num_gt_ids": 9
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c024",
+      "root": "/content/cityflow/train/S04/c024",
+      "video_path": "/content/cityflow/train/S04/c024/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c024/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 46,
+      "num_gt_ids": 9
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c025",
+      "root": "/content/cityflow/train/S04/c025",
+      "video_path": "/content/cityflow/train/S04/c025/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c025/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 626,
+      "num_gt_ids": 11
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c026",
+      "root": "/content/cityflow/train/S04/c026",
+      "video_path": "/content/cityflow/train/S04/c026/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c026/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 1888,
+      "num_gt_ids": 10
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c027",
+      "root": "/content/cityflow/train/S04/c027",
+      "video_path": "/content/cityflow/train/S04/c027/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c027/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 1049,
+      "num_gt_ids": 7
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c028",
+      "root": "/content/cityflow/train/S04/c028",
+      "video_path": "/content/cityflow/train/S04/c028/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c028/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 162,
+      "num_gt_ids": 3
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c029",
+      "root": "/content/cityflow/train/S04/c029",
+      "video_path": "/content/cityflow/train/S04/c029/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c029/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 897,
+      "num_gt_ids": 9
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c030",
+      "root": "/content/cityflow/train/S04/c030",
+      "video_path": "/content/cityflow/train/S04/c030/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c030/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 1579,
+      "num_gt_ids": 22
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c031",
+      "root": "/content/cityflow/train/S04/c031",
+      "video_path": "/content/cityflow/train/S04/c031/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c031/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 192,
+      "num_gt_ids": 22
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c032",
+      "root": "/content/cityflow/train/S04/c032",
+      "video_path": "/content/cityflow/train/S04/c032/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c032/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 1461,
+      "num_gt_ids": 22
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c033",
+      "root": "/content/cityflow/train/S04/c033",
+      "video_path": "/content/cityflow/train/S04/c033/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c033/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 2507,
+      "num_gt_ids": 26
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c034",
+      "root": "/content/cityflow/train/S04/c034",
+      "video_path": "/content/cityflow/train/S04/c034/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c034/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 2559,
+      "num_gt_ids": 23
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c035",
+      "root": "/content/cityflow/train/S04/c035",
+      "video_path": "/content/cityflow/train/S04/c035/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c035/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 716,
+      "num_gt_ids": 14
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c036",
+      "root": "/content/cityflow/train/S04/c036",
+      "video_path": "/content/cityflow/train/S04/c036/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c036/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 2057,
+      "num_gt_ids": 21
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c037",
+      "root": "/content/cityflow/train/S04/c037",
+      "video_path": "/content/cityflow/train/S04/c037/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c037/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 1185,
+      "num_gt_ids": 16
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c038",
+      "root": "/content/cityflow/train/S04/c038",
+      "video_path": "/content/cityflow/train/S04/c038/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c038/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 1055,
+      "num_gt_ids": 19
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c039",
+      "root": "/content/cityflow/train/S04/c039",
+      "video_path": "/content/cityflow/train/S04/c039/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c039/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 428,
+      "num_gt_ids": 15
+    },
+    {
+      "scenario_id": "S04",
+      "camera_id": "c040",
+      "root": "/content/cityflow/train/S04/c040",
+      "video_path": "/content/cityflow/train/S04/c040/vdo.avi",
+      "gt_path": "/content/cityflow/train/S04/c040/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 1090,
+      "num_gt_ids": 13
+    },
+    {
+      "scenario_id": "S02",
+      "camera_id": "c006",
+      "root": "/content/cityflow/validation/S02/c006",
+      "video_path": "/content/cityflow/validation/S02/c006/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S02/c006/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 5081,
+      "num_gt_ids": 124
+    },
+    {
+      "scenario_id": "S02",
+      "camera_id": "c007",
+      "root": "/content/cityflow/validation/S02/c007",
+      "video_path": "/content/cityflow/validation/S02/c007/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S02/c007/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 4216,
+      "num_gt_ids": 90
+    },
+    {
+      "scenario_id": "S02",
+      "camera_id": "c008",
+      "root": "/content/cityflow/validation/S02/c008",
+      "video_path": "/content/cityflow/validation/S02/c008/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S02/c008/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 3425,
+      "num_gt_ids": 99
+    },
+    {
+      "scenario_id": "S02",
+      "camera_id": "c009",
+      "root": "/content/cityflow/validation/S02/c009",
+      "video_path": "/content/cityflow/validation/S02/c009/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S02/c009/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 8234,
+      "num_gt_ids": 137
+    },
+    {
+      "scenario_id": "S05",
+      "camera_id": "c010",
+      "root": "/content/cityflow/validation/S05/c010",
+      "video_path": "/content/cityflow/validation/S05/c010/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S05/c010/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 4151,
+      "num_gt_ids": 29
+    },
+    {
+      "scenario_id": "S05",
+      "camera_id": "c016",
+      "root": "/content/cityflow/validation/S05/c016",
+      "video_path": "/content/cityflow/validation/S05/c016/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S05/c016/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 10845,
+      "num_gt_ids": 81
+    },
+    {
+      "scenario_id": "S05",
+      "camera_id": "c017",
+      "root": "/content/cityflow/validation/S05/c017",
+      "video_path": "/content/cityflow/validation/S05/c017/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S05/c017/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 5981,
+      "num_gt_ids": 85
+    },
+    {
+      "scenario_id": "S05",
+      "camera_id": "c018",
+      "root": "/content/cityflow/validation/S05/c018",
+      "video_path": "/content/cityflow/validation/S05/c018/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S05/c018/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 2486,
+      "num_gt_ids": 59
+    },
+    {
+      "scenario_id": "S05",
+      "camera_id": "c019",
+      "root": "/content/cityflow/validation/S05/c019",
+      "video_path": "/content/cityflow/validation/S05/c019/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S05/c019/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 673,
+      "num_gt_ids": 60
+    },
+    {
+      "scenario_id": "S05",
+      "camera_id": "c020",
+      "root": "/content/cityflow/validation/S05/c020",
+      "video_path": "/content/cityflow/validation/S05/c020/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S05/c020/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 2348,
+      "num_gt_ids": 62
+    },
+    {
+      "scenario_id": "S05",
+      "camera_id": "c021",
+      "root": "/content/cityflow/validation/S05/c021",
+      "video_path": "/content/cityflow/validation/S05/c021/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S05/c021/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 5878,
+      "num_gt_ids": 67
+    },
+    {
+      "scenario_id": "S05",
+      "camera_id": "c022",
+      "root": "/content/cityflow/validation/S05/c022",
+      "video_path": "/content/cityflow/validation/S05/c022/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S05/c022/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 12478,
+      "num_gt_ids": 83
+    },
+    {
+      "scenario_id": "S05",
+      "camera_id": "c023",
+      "root": "/content/cityflow/validation/S05/c023",
+      "video_path": "/content/cityflow/validation/S05/c023/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S05/c023/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 4133,
+      "num_gt_ids": 82
+    },
+    {
+      "scenario_id": "S05",
+      "camera_id": "c024",
+      "root": "/content/cityflow/validation/S05/c024",
+      "video_path": "/content/cityflow/validation/S05/c024/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S05/c024/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 863,
+      "num_gt_ids": 69
+    },
+    {
+      "scenario_id": "S05",
+      "camera_id": "c025",
+      "root": "/content/cityflow/validation/S05/c025",
+      "video_path": "/content/cityflow/validation/S05/c025/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S05/c025/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 5740,
+      "num_gt_ids": 86
+    },
+    {
+      "scenario_id": "S05",
+      "camera_id": "c026",
+      "root": "/content/cityflow/validation/S05/c026",
+      "video_path": "/content/cityflow/validation/S05/c026/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S05/c026/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 13118,
+      "num_gt_ids": 89
+    },
+    {
+      "scenario_id": "S05",
+      "camera_id": "c027",
+      "root": "/content/cityflow/validation/S05/c027",
+      "video_path": "/content/cityflow/validation/S05/c027/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S05/c027/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 11142,
+      "num_gt_ids": 77
+    },
+    {
+      "scenario_id": "S05",
+      "camera_id": "c028",
+      "root": "/content/cityflow/validation/S05/c028",
+      "video_path": "/content/cityflow/validation/S05/c028/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S05/c028/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 8236,
+      "num_gt_ids": 68
+    },
+    {
+      "scenario_id": "S05",
+      "camera_id": "c029",
+      "root": "/content/cityflow/validation/S05/c029",
+      "video_path": "/content/cityflow/validation/S05/c029/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S05/c029/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 12694,
+      "num_gt_ids": 108
+    },
+    {
+      "scenario_id": "S05",
+      "camera_id": "c033",
+      "root": "/content/cityflow/validation/S05/c033",
+      "video_path": "/content/cityflow/validation/S05/c033/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S05/c033/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 23866,
+      "num_gt_ids": 203
+    },
+    {
+      "scenario_id": "S05",
+      "camera_id": "c034",
+      "root": "/content/cityflow/validation/S05/c034",
+      "video_path": "/content/cityflow/validation/S05/c034/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S05/c034/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 14963,
+      "num_gt_ids": 168
+    },
+    {
+      "scenario_id": "S05",
+      "camera_id": "c035",
+      "root": "/content/cityflow/validation/S05/c035",
+      "video_path": "/content/cityflow/validation/S05/c035/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S05/c035/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 13626,
+      "num_gt_ids": 189
+    },
+    {
+      "scenario_id": "S05",
+      "camera_id": "c036",
+      "root": "/content/cityflow/validation/S05/c036",
+      "video_path": "/content/cityflow/validation/S05/c036/vdo.avi",
+      "gt_path": "/content/cityflow/validation/S05/c036/gt/gt.txt",
+      "fps": 10.0,
+      "num_detections": 11250,
+      "num_gt_ids": 114
+    }
+  ]
+}

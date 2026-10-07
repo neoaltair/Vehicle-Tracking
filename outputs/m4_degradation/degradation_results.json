@@ -1,0 +1,167 @@
+[
+  {
+    "family": "downscale",
+    "severity": 1.0,
+    "app_mAP_mean": 0.39222,
+    "app_mAP_std": 0.0,
+    "st_mAP_mean": 0.579427,
+    "st_mAP_std": 0.0,
+    "app_rank1_mean": 0.523457,
+    "st_rank1_mean": 0.561881,
+    "mAP_gain": 0.187207
+  },
+  {
+    "family": "downscale",
+    "severity": 0.5,
+    "app_mAP_mean": 0.39222,
+    "app_mAP_std": 0.0,
+    "st_mAP_mean": 0.579427,
+    "st_mAP_std": 0.0,
+    "app_rank1_mean": 0.523457,
+    "st_rank1_mean": 0.561881,
+    "mAP_gain": 0.187207
+  },
+  {
+    "family": "downscale",
+    "severity": 0.25,
+    "app_mAP_mean": 0.39222,
+    "app_mAP_std": 0.0,
+    "st_mAP_mean": 0.579427,
+    "st_mAP_std": 0.0,
+    "app_rank1_mean": 0.523457,
+    "st_rank1_mean": 0.561881,
+    "mAP_gain": 0.187207
+  },
+  {
+    "family": "downscale",
+    "severity": 0.125,
+    "app_mAP_mean": 0.39222,
+    "app_mAP_std": 0.0,
+    "st_mAP_mean": 0.579427,
+    "st_mAP_std": 0.0,
+    "app_rank1_mean": 0.523457,
+    "st_rank1_mean": 0.561881,
+    "mAP_gain": 0.187207
+  },
+  {
+    "family": "blur",
+    "severity": 0.0,
+    "app_mAP_mean": 0.39222,
+    "app_mAP_std": 0.0,
+    "st_mAP_mean": 0.579427,
+    "st_mAP_std": 0.0,
+    "app_rank1_mean": 0.523457,
+    "st_rank1_mean": 0.561881,
+    "mAP_gain": 0.187207
+  },
+  {
+    "family": "blur",
+    "severity": 1.0,
+    "app_mAP_mean": 0.39222,
+    "app_mAP_std": 0.0,
+    "st_mAP_mean": 0.579427,
+    "st_mAP_std": 0.0,
+    "app_rank1_mean": 0.523457,
+    "st_rank1_mean": 0.561881,
+    "mAP_gain": 0.187207
+  },
+  {
+    "family": "blur",
+    "severity": 2.0,
+    "app_mAP_mean": 0.39222,
+    "app_mAP_std": 0.0,
+    "st_mAP_mean": 0.579427,
+    "st_mAP_std": 0.0,
+    "app_rank1_mean": 0.523457,
+    "st_rank1_mean": 0.561881,
+    "mAP_gain": 0.187207
+  },
+  {
+    "family": "blur",
+    "severity": 4.0,
+    "app_mAP_mean": 0.39222,
+    "app_mAP_std": 0.0,
+    "st_mAP_mean": 0.579427,
+    "st_mAP_std": 0.0,
+    "app_rank1_mean": 0.523457,
+    "st_rank1_mean": 0.561881,
+    "mAP_gain": 0.187207
+  },
+  {
+    "family": "crop",
+    "severity": 1.0,
+    "app_mAP_mean": 0.39222,
+    "app_mAP_std": 0.0,
+    "st_mAP_mean": 0.579427,
+    "st_mAP_std": 0.0,
+    "app_rank1_mean": 0.523457,
+    "st_rank1_mean": 0.561881,
+    "mAP_gain": 0.187207
+  },
+  {
+    "family": "crop",
+    "severity": 0.75,
+    "app_mAP_mean": 0.39222,
+    "app_mAP_std": 0.0,
+    "st_mAP_mean": 0.579427,
+    "st_mAP_std": 0.0,
+    "app_rank1_mean": 0.523457,
+    "st_rank1_mean": 0.561881,
+    "mAP_gain": 0.187207
+  },
+  {
+    "family": "crop",
+    "severity": 0.5,
+    "app_mAP_mean": 0.39222,
+    "app_mAP_std": 0.0,
+    "st_mAP_mean": 0.579427,
+    "st_mAP_std": 0.0,
+    "app_rank1_mean": 0.523457,
+    "st_rank1_mean": 0.561881,
+    "mAP_gain": 0.187207
+  },
+  {
+    "family": "crop",
+    "severity": 0.25,
+    "app_mAP_mean": 0.39222,
+    "app_mAP_std": 0.0,
+    "st_mAP_mean": 0.579427,
+    "st_mAP_std": 0.0,
+    "app_rank1_mean": 0.523457,
+    "st_rank1_mean": 0.561881,
+    "mAP_gain": 0.187207
+  },
+  {
+    "family": "occlusion",
+    "severity": 0.0,
+    "app_mAP_mean": 0.39222,
+    "app_mAP_std": 0.0,
+    "st_mAP_mean": 0.579427,
+    "st_mAP_std": 0.0,
+    "app_rank1_mean": 0.523457,
+    "st_rank1_mean": 0.561881,
+    "mAP_gain": 0.187207
+  },
+  {
+    "family": "occlusion",
+    "severity": 0.25,
+    "app_mAP_mean": 0.39222,
+    "app_mAP_std": 0.0,
+    "st_mAP_mean": 0.579427,
+    "st_mAP_std": 0.0,
+    "app_rank1_mean": 0.523457,
+    "st_rank1_mean": 0.561881,
+    "mAP_gain": 0.187207
+  },
+  {
+    "family": "occlusion",
+    "severity": 0.5,
+    "app_mAP_mean": 0.39222,
+    "app_mAP_std": 0.0,
+    "st_mAP_mean": 0.579427,
+    "st_mAP_std": 0.0,
+    "app_rank1_mean": 0.523457,
+    "st_rank1_mean": 0.561881,
+    "mAP_gain": 0.187207
+  }
+]
