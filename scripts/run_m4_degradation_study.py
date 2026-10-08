@@ -30,23 +30,36 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import sys
 from pathlib import Path
 
-import cv2
-import numpy as np
+# Ensure src/ is on sys.path even if package isn't installed in editable mode in Colab
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT / "src"))
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
-from incident_search.degrade.transforms import degrade_crop
-from incident_search.eval.metrics import evaluate_retrieval
-from incident_search.eval.protocol import (
+import cv2  # noqa: E402
+import numpy as np  # noqa: E402
+
+from incident_search.degrade.transforms import degrade_crop  # noqa: E402
+from incident_search.eval.metrics import evaluate_retrieval  # noqa: E402
+from incident_search.eval.protocol import (  # noqa: E402
     assert_identity_disjoint,
     build_upstream_protocol,
     filter_tracklets_by_identities,
     make_identity_splits,
 )
-from incident_search.graph.camera_graph import build_camera_graph_from_training_tracklets
-from incident_search.io.cityflow import discover_cityflow_cameras, load_cityflow_gt_tracklets
-from incident_search.reid.extractor import FastReIDExtractor, aggregate_embeddings
-from incident_search.search.spatiotemporal import (
+from incident_search.graph.camera_graph import (  # noqa: E402
+    build_camera_graph_from_training_tracklets,
+)
+from incident_search.io.cityflow import (  # noqa: E402
+    discover_cityflow_cameras,
+    load_cityflow_gt_tracklets,
+)
+from incident_search.reid.extractor import FastReIDExtractor, aggregate_embeddings  # noqa: E402
+from incident_search.search.spatiotemporal import (  # noqa: E402
     build_graph_prior_matrix,
     compute_fused_scores,
 )
