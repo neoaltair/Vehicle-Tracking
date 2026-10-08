@@ -84,8 +84,8 @@ Evaluate the robustness of Appearance-only vs. Spatio-Temporal retrieval on the 
   --root "$CITYFLOW_ROOT" \
   --embedding-cache outputs/cache/embeddings \
   --weights outputs/weights/veri_sbs_R50-ibn.pth \
-  --time-window-s 300.0 \
-  --alpha 0.10 \
+  --time-window-s 60.0 \
+  --alpha 0.05 \
   --out-dir outputs/m4_degradation
 ```
 

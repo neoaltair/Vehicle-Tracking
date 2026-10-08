@@ -123,3 +123,32 @@ def test_degradation_transforms():
     occ = apply_occlusion(img, occlusion_ratio=0.25, seed=42)
     assert occ.shape == (64, 64, 3)
     assert np.any(occ == 128)  # Patch exists
+
+
+def test_degraded_embedding_differs_from_clean():
+    """Sanity check: verify FastReID embedding of degraded image differs from clean."""
+    from incident_search.degrade.transforms import degrade_crop
+    from incident_search.reid.extractor import FastReIDExtractor
+
+    extractor = FastReIDExtractor(device="cpu")
+    # Generate non-trivial image with color patterns
+    img = np.zeros((128, 128, 3), dtype=np.uint8)
+    img[20:100, 20:100, 0] = 220
+    img[40:80, 40:80, 1] = 180
+    img[60:120, 60:120, 2] = 240
+
+    clean_emb = extractor.embed_crops([img])[0]
+
+    # Test each degradation family with significant severity
+    for family, sev in [
+        ("downscale", 0.125),
+        ("blur", 4.0),
+        ("crop", 0.25),
+        ("occlusion", 0.50),
+    ]:
+        deg_img = degrade_crop(img, family, sev, seed=42)
+        deg_emb = extractor.embed_crops([deg_img])[0]
+        cosine_sim = float(np.dot(clean_emb, deg_emb))
+        # Degraded embedding must differ from clean (cosine similarity < 0.999)
+        assert cosine_sim < 0.999, f"{family} produced identical embedding to clean"
+

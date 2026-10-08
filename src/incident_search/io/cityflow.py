@@ -96,8 +96,10 @@ def discover_cityflow_cameras(
         seen.add(camera_dir)
 
         rel_parts = camera_dir.relative_to(root).parts
-        camera_id = camera_dir.name
         scenario_id = rel_parts[-2] if len(rel_parts) >= 2 else "unknown"
+        # Scope camera_id with scenario to prevent cross-scenario basename collisions
+        # (e.g. S03/c010 and S05/c010 both have dirname "c010").
+        camera_id = f"{scenario_id}_{camera_dir.name}"
 
         video_path = None
         for video_name in ("vdo.avi", "vdo.mp4", "vdo.mov", "video.avi", "video.mp4"):
@@ -194,7 +196,11 @@ def gt_detections_to_tracklets(
         if len(rows) < min_frames:
             continue
 
-        tracklet_id = f"{scenario_id}_{camera_id}_gt{vehicle_id}"
+        # camera_id is scoped (e.g. "S01_c001"); strip the scenario prefix for
+        # the tracklet_id so the format stays "S01_c001_gtN" (not "S01_S01_c001_gtN").
+        # We extract the original dirname by splitting off the scenario prefix.
+        cam_basename = camera_id[len(scenario_id) + 1:] if camera_id.startswith(scenario_id + "_") else camera_id
+        tracklet_id = f"{scenario_id}_{cam_basename}_gt{vehicle_id}"
         tracklets.append(
             Tracklet(
                 tracklet_id=tracklet_id,
