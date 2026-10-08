@@ -284,6 +284,13 @@ def main() -> int:
         len(clean_embedding_map),
         len(test_tracklets),
     )
+    if not clean_embedding_map:
+        raise FileNotFoundError(
+            f"No clean embeddings found in '{args.embedding_cache}/{args.model_name}'. "
+            "The gallery requires the existing clean embedding cache. "
+            "If running in a fresh Colab instance, please restore or copy the 'outputs/cache/embeddings' "
+            "folder from your previous session or Google Drive."
+        )
 
     extractor = FastReIDExtractor(args.weights)
 
