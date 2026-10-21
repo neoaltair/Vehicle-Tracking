@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 
 from incident_search.detect_track import run_detect_track
+from incident_search.detect_track.live_stream import stream_detect_track
 from incident_search.graph.camera_graph import CameraTransitionGraph
 from incident_search.io.schema import SearchResult, SearchResultItem, Tracklet
 from incident_search.reid.extractor import FastReIDExtractor, aggregate_embeddings
@@ -87,6 +88,47 @@ class IncidentSearchPipeline:
         # Store tracklets
         self.tracklets.extend(trks)
         return trks
+
+    def stream_camera_video(
+        self,
+        camera_id: str,
+        video_path: str | Path,
+        time_offset_s: float = 0.0,
+        output_dir: str | Path = "outputs/pipeline",
+        max_frames: int | None = None,
+        config: dict[str, Any] | None = None,
+    ):
+        """Stream detection frames live while tracking and embedding vehicles.
+
+        Yields (rgb_frame, frame_idx, vehicle_count).
+        On completion, registers tracklets and extracts ReID embeddings.
+        """
+        gen = stream_detect_track(
+            video_path=video_path,
+            camera_id=camera_id,
+            config=config,
+            output_dir=output_dir,
+            max_frames=max_frames,
+            time_offset_s=time_offset_s,
+        )
+
+        trks = None
+        try:
+            while True:
+                item = next(gen)
+                yield item
+        except StopIteration as e:
+            trks = e.value
+
+        if trks:
+            for trk in trks:
+                crops = [p for p in trk.crop_paths if Path(p).exists()]
+                if not crops:
+                    continue
+                frame_embs = self.extractor.embed_crops(crops)
+                emb = aggregate_embeddings(frame_embs, method="mean")
+                self.embedding_map[trk.tracklet_id] = emb
+            self.tracklets.extend(trks)
 
     def search_vehicle(
         self,
