@@ -96,12 +96,12 @@ class CrossCameraJourneyReconstructor:
         q_mat = q_emb[None, :]
 
         for cam_id, trks in by_camera.items():
-            # Temporal filtering: candidate observation must be within window around incident
+            # Temporal filtering: candidate observation must be upstream (prior to incident)
             eligible_trks: list[Tracklet] = []
             for trk in trks:
-                # Upstream check: candidate vehicle was seen within window_s before incident time
+                # dt is the time elapsed between candidate observation and incident
                 dt = incident.time_s - trk.end_time_s
-                if dt < -10.0:  # Allow slight future tolerance
+                if dt < -5.0:  # Observation occurred after incident
                     continue
                 if window_s is not None and dt > window_s:
                     continue
