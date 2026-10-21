@@ -19,11 +19,11 @@ Optimized version:
 from __future__ import annotations
 
 import argparse
-from collections import defaultdict
 import json
 import logging
-from pathlib import Path
 import sys
+from collections import defaultdict
+from pathlib import Path
 
 # Ensure src/ is on sys.path
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -50,7 +50,11 @@ from incident_search.io.cityflow import (  # noqa: E402
     discover_cityflow_cameras,
     load_cityflow_gt_tracklets,
 )
-from incident_search.reid.extractor import FastReIDExtractor, aggregate_embeddings, save_embeddings  # noqa: E402
+from incident_search.reid.extractor import (  # noqa: E402
+    FastReIDExtractor,
+    aggregate_embeddings,
+    save_embeddings,
+)
 from incident_search.search.spatiotemporal import (  # noqa: E402
     build_graph_prior_matrix,
     compute_fused_scores,

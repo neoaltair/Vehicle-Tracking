@@ -1,4 +1,4 @@
-"""End-to-end multi-camera vehicle tracking and search pipeline."""
+"""End-to-end multi-camera vehicle tracking and incident search pipeline."""
 
 from __future__ import annotations
 
@@ -12,8 +12,16 @@ import numpy as np
 from incident_search.detect_track import run_detect_track
 from incident_search.detect_track.live_stream import stream_detect_track
 from incident_search.graph.camera_graph import CameraTransitionGraph
-from incident_search.io.schema import SearchResult, SearchResultItem, Tracklet
+from incident_search.incident.detector import (
+    create_manual_incident,
+    detect_incidents_from_tracklets,
+)
+from incident_search.io.schema import Incident, SearchResult, SearchResultItem, Tracklet
 from incident_search.reid.extractor import FastReIDExtractor, aggregate_embeddings
+from incident_search.search.journey import (
+    CrossCameraJourneyReconstructor,
+    JourneyResult,
+)
 from incident_search.search.spatiotemporal import compute_fused_scores
 
 logger = logging.getLogger(__name__)
@@ -26,10 +34,11 @@ class VideoCameraInput:
     camera_id: str
     video_path: str | Path
     time_offset_s: float = 0.0
+    is_main: bool = False
 
 
 class IncidentSearchPipeline:
-    """End-to-end multi-camera video ingest, tracking, re-ID, and incident search."""
+    """Multi-camera surveillance pipeline: 1 main video + N background CCTV cameras."""
 
     def __init__(
         self,
@@ -43,6 +52,9 @@ class IncidentSearchPipeline:
         self.camera_graph = camera_graph or CameraTransitionGraph()
         self.tracklets: list[Tracklet] = []
         self.embedding_map: dict[str, np.ndarray] = {}
+        self.main_camera_id: str | None = None
+        self.background_camera_ids: list[str] = []
+        self.reconstructor = CrossCameraJourneyReconstructor(camera_graph=self.camera_graph)
 
     @property
     def extractor(self) -> FastReIDExtractor:
@@ -58,6 +70,7 @@ class IncidentSearchPipeline:
         camera_id: str,
         video_path: str | Path,
         time_offset_s: float = 0.0,
+        is_main: bool = False,
         output_dir: str | Path = "outputs/pipeline",
         max_frames: int | None = None,
         config: dict[str, Any] | None = None,
@@ -66,7 +79,12 @@ class IncidentSearchPipeline:
         out_dir = Path(output_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        logger.info("Processing camera %s from video %s", camera_id, video_path)
+        logger.info("Processing camera %s (is_main=%s) from %s", camera_id, is_main, video_path)
+        if is_main:
+            self.main_camera_id = camera_id
+        elif camera_id not in self.background_camera_ids:
+            self.background_camera_ids.append(camera_id)
+
         trks = run_detect_track(
             video_path=video_path,
             camera_id=camera_id,
@@ -85,7 +103,6 @@ class IncidentSearchPipeline:
             emb = aggregate_embeddings(frame_embs, method="mean")
             self.embedding_map[trk.tracklet_id] = emb
 
-        # Store tracklets
         self.tracklets.extend(trks)
         return trks
 
@@ -94,15 +111,17 @@ class IncidentSearchPipeline:
         camera_id: str,
         video_path: str | Path,
         time_offset_s: float = 0.0,
+        is_main: bool = False,
         output_dir: str | Path = "outputs/pipeline",
         max_frames: int | None = None,
         config: dict[str, Any] | None = None,
     ):
-        """Stream detection frames live while tracking and embedding vehicles.
+        """Stream detection frames live while tracking and embedding vehicles."""
+        if is_main:
+            self.main_camera_id = camera_id
+        elif camera_id not in self.background_camera_ids:
+            self.background_camera_ids.append(camera_id)
 
-        Yields (rgb_frame, frame_idx, vehicle_count).
-        On completion, registers tracklets and extracts ReID embeddings.
-        """
         gen = stream_detect_track(
             video_path=video_path,
             camera_id=camera_id,
@@ -130,6 +149,40 @@ class IncidentSearchPipeline:
                 self.embedding_map[trk.tracklet_id] = emb
             self.tracklets.extend(trks)
 
+    def detect_incidents_in_camera(self, camera_id: str, fps: float = 30.0) -> list[Incident]:
+        """Detect automated kinematic incidents (sudden stops, stalls) in a specific camera feed."""
+        cam_trks = [t for t in self.tracklets if t.camera_id == camera_id]
+        return detect_incidents_from_tracklets(cam_trks, fps=fps)
+
+    def trigger_incident_search(
+        self,
+        query_tracklet: Tracklet,
+        incident: Incident | None = None,
+        time_window_s: float = 300.0,
+        alpha: float = 0.05,
+        min_score: float = 0.20,
+    ) -> JourneyResult:
+        """Given a suspect vehicle from the Main Video, reconstruct its journey across background CCTV cameras."""
+        if incident is None:
+            incident = create_manual_incident(
+                camera_id=query_tracklet.camera_id,
+                tracklet=query_tracklet,
+                time_s=query_tracklet.start_time_s,
+                description=f"Suspect vehicle search for {query_tracklet.tracklet_id}",
+            )
+
+        bg_tracklets = [t for t in self.tracklets if t.camera_id != query_tracklet.camera_id]
+
+        return self.reconstructor.reconstruct_journey(
+            incident=incident,
+            query_tracklet=query_tracklet,
+            background_tracklets=bg_tracklets,
+            embedding_map=self.embedding_map,
+            time_window_s=time_window_s,
+            alpha=alpha,
+            min_score=min_score,
+        )
+
     def search_vehicle(
         self,
         query_tracklet: Tracklet,
@@ -138,7 +191,7 @@ class IncidentSearchPipeline:
         min_score: float = 0.0,
         top_k: int = 10,
     ) -> SearchResult:
-        """Search across all camera tracklets for the target vehicle."""
+        """Search across all background cameras for a target vehicle."""
         if query_tracklet.tracklet_id not in self.embedding_map:
             raise ValueError(f"No embedding found for query tracklet {query_tracklet.tracklet_id}")
 
@@ -151,7 +204,7 @@ class IncidentSearchPipeline:
             if trk.tracklet_id == query_tracklet.tracklet_id:
                 continue
             if trk.camera_id == query_tracklet.camera_id:
-                continue  # cross-camera retrieval
+                continue
             if trk.tracklet_id in self.embedding_map:
                 candidates.append(trk)
                 c_embs.append(self.embedding_map[trk.tracklet_id])
@@ -168,10 +221,8 @@ class IncidentSearchPipeline:
         g_mat = np.stack(c_embs)
         q_mat = q_emb[None, :]
 
-        # Cosine appearance scores
         app_scores = (q_mat @ g_mat.T).astype(np.float32)
 
-        # Spatio-temporal filtering and priors
         eligible_indices = []
         priors = np.zeros((1, len(candidates)), dtype=np.float32)
 
@@ -180,7 +231,6 @@ class IncidentSearchPipeline:
             if time_window_s is not None and dt > time_window_s:
                 continue
 
-            # Prior from graph if available
             prob = self.camera_graph.get_prior(cand.camera_id, query_tracklet.camera_id, dt)
             priors[0, j] = prob
             eligible_indices.append(j)
