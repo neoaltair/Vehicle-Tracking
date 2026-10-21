@@ -54,6 +54,9 @@ class IncidentSearchPipeline:
         self.embedding_map: dict[str, np.ndarray] = {}
         self.main_camera_id: str | None = None
         self.background_camera_ids: list[str] = []
+        self.annotated_videos: dict[str, str] = {}
+        self.raw_video_paths: dict[str, str] = {}
+        self.camera_offsets: dict[str, float] = {}
         self.reconstructor = CrossCameraJourneyReconstructor(camera_graph=self.camera_graph)
 
     @property
@@ -74,6 +77,7 @@ class IncidentSearchPipeline:
         output_dir: str | Path = "outputs/pipeline",
         max_frames: int | None = None,
         config: dict[str, Any] | None = None,
+        save_annotated_video: bool = True,
     ) -> list[Tracklet]:
         """Detect and track vehicles in a video, then compute ReID embeddings."""
         out_dir = Path(output_dir)
@@ -94,6 +98,12 @@ class IncidentSearchPipeline:
             save_annotated_video=True,
             time_offset_s=time_offset_s,
         )
+
+        annotated_path = out_dir / f"{camera_id}_annotated.mp4"
+        if annotated_path.exists():
+            self.annotated_videos[camera_id] = str(annotated_path.as_posix())
+        self.raw_video_paths[camera_id] = str(Path(video_path).as_posix())
+        self.camera_offsets[camera_id] = float(time_offset_s)
 
         for trk in trks:
             crops = [p for p in trk.crop_paths if Path(p).exists()]
@@ -140,6 +150,13 @@ class IncidentSearchPipeline:
             trks = e.value
 
         if trks:
+            out_p = Path(output_dir)
+            annotated_path = out_p / f"{camera_id}_annotated.mp4"
+            if annotated_path.exists():
+                self.annotated_videos[camera_id] = str(annotated_path.as_posix())
+            self.raw_video_paths[camera_id] = str(Path(video_path).as_posix())
+            self.camera_offsets[camera_id] = float(time_offset_s)
+
             for trk in trks:
                 crops = [p for p in trk.crop_paths if Path(p).exists()]
                 if not crops:

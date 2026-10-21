@@ -48,6 +48,37 @@ def filter_tracklets_by_length(
     }
 
 
+def get_track_color(track_id: int) -> tuple[int, int, int]:
+    """Generate a distinct, bright BGR color from a track ID."""
+    palette = [
+        (0, 165, 255),    # Orange
+        (0, 255, 0),      # Bright Green
+        (255, 191, 0),    # Deep Sky Blue
+        (255, 0, 255),    # Magenta
+        (0, 255, 255),    # Yellow
+        (255, 105, 180),  # Hot Pink
+        (50, 205, 50),    # Lime Green
+        (0, 215, 255),    # Gold
+        (238, 130, 238),  # Violet
+        (0, 128, 255),    # Amber
+    ]
+    return palette[track_id % len(palette)]
+
+
+def format_surveillance_clock(
+    seconds: float, base_hour: int = 14, base_minute: int = 0
+) -> str:
+    """Format elapsed seconds into a synchronized surveillance clock string HH:MM:SS.ff."""
+    total_sec = max(0.0, seconds)
+    mins, secs = divmod(total_sec, 60.0)
+    hours, mins = divmod(mins, 60.0)
+    h = int((base_hour + hours) % 24)
+    m = int((base_minute + mins) % 60)
+    s = int(secs)
+    cs = int((secs - s) * 100)
+    return f"{h:02d}:{m:02d}:{s:02d}.{cs:02d}"
+
+
 def sample_best_crops(
     frames: list[int],
     boxes: list[list[float]],
@@ -160,20 +191,36 @@ def run_detect_track(
         total_to_process,
     )
 
-    # Initialize video writer for annotated video
+    # Initialize video writer for annotated video (H.264 web-compatible)
     video_writer = None
+    use_imageio = False
+    annotated_video_path = None
     if save_annotated_video and out_path:
         annotated_video_path = out_path / f"{camera_id}_annotated.mp4"
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        video_writer = cv2.VideoWriter(
-            str(annotated_video_path), fourcc, fps, (width, height)
-        )
+        try:
+            import imageio
+            video_writer = imageio.get_writer(
+                str(annotated_video_path),
+                fps=fps,
+                codec="libx264",
+                pixelformat="yuv420p",
+            )
+            use_imageio = True
+            logger.info("Initialized H.264 web-compatible video writer via imageio-ffmpeg")
+        except Exception as e:
+            logger.warning("imageio H.264 init failed (%s), fallback to cv2.VideoWriter", e)
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            video_writer = cv2.VideoWriter(
+                str(annotated_video_path), fourcc, fps, (width, height)
+            )
+            use_imageio = False
 
     # Load YOLO detector
     model = YOLO(model_name)
 
     # Dictionary storing raw observations per track ID
     raw_tracklets: dict[str, dict[str, Any]] = {}
+    track_trails: dict[int, list[tuple[int, int]]] = {}
 
     frame_idx = 0
     try:
@@ -196,18 +243,25 @@ def run_detect_track(
             orig_frame = result.orig_img.copy()
             annotated_frame = orig_frame.copy()
 
+            # Global elapsed time for synchronized surveillance clock
+            elapsed_time_s = time_offset_s + (frame_idx / fps)
+            clock_str = format_surveillance_clock(elapsed_time_s)
+
             boxes_obj = result.boxes
+            active_tracks_count = 0
             if boxes_obj is not None and len(boxes_obj) > 0 and boxes_obj.id is not None:
                 track_ids = boxes_obj.id.int().cpu().tolist()
                 coords = boxes_obj.xyxy.cpu().tolist()
                 confs = boxes_obj.conf.cpu().tolist()
                 cls_ids = boxes_obj.cls.int().cpu().tolist()
+                active_tracks_count = len(track_ids)
 
                 for trk_id_int, (x1, y1, x2, y2), conf, cls_id in zip(
                     track_ids, coords, confs, cls_ids
                 ):
                     trk_id_str = f"{camera_id}_trk{trk_id_int:04d}"
                     v_class = CLASS_NAMES.get(cls_id, "car")
+                    color = get_track_color(trk_id_int)
 
                     # Clamp box coordinates
                     x1_c = max(0, min(width - 1, int(round(x1))))
@@ -231,34 +285,102 @@ def run_detect_track(
                     raw_tracklets[trk_id_str]["scores"].append(float(conf))
                     raw_tracklets[trk_id_str]["crop_images"].append(crop_img)
 
-                    # Draw box and track ID on annotated frame
+                    # Record centroid for trajectory breadcrumb trail
+                    center_pt = ((x1_c + x2_c) // 2, (y1_c + y2_c) // 2)
+                    if trk_id_int not in track_trails:
+                        track_trails[trk_id_int] = []
+                    track_trails[trk_id_int].append(center_pt)
+                    if len(track_trails[trk_id_int]) > 16:
+                        track_trails[trk_id_int].pop(0)
+
+                    # Draw motion trajectory trail
+                    pts = track_trails[trk_id_int]
+                    for p_idx in range(1, len(pts)):
+                        cv2.line(annotated_frame, pts[p_idx - 1], pts[p_idx], color, 2)
+
+                    # Draw bounding box
                     cv2.rectangle(
                         annotated_frame,
                         (x1_c, y1_c),
                         (x2_c, y2_c),
-                        (0, 255, 0),
-                        2,
-                    )
-                    label = f"ID:{trk_id_int} {v_class} {conf:.2f}"
-                    cv2.putText(
-                        annotated_frame,
-                        label,
-                        (x1_c, max(15, y1_c - 6)),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.5,
-                        (0, 255, 0),
+                        color,
                         2,
                     )
 
+                    # Draw high-contrast badge pill
+                    label_text = f"#{trk_id_int:02d} {v_class.upper()} {int(conf * 100)}%"
+                    (tw, th), baseline = cv2.getTextSize(
+                        label_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1
+                    )
+                    badge_y1 = max(0, y1_c - th - 8)
+                    badge_y2 = y1_c
+                    cv2.rectangle(
+                        annotated_frame,
+                        (x1_c, badge_y1),
+                        (x1_c + tw + 10, badge_y2),
+                        (20, 20, 20),
+                        -1,
+                    )
+                    cv2.rectangle(
+                        annotated_frame,
+                        (x1_c, badge_y1),
+                        (x1_c + tw + 10, badge_y2),
+                        color,
+                        1,
+                    )
+                    cv2.putText(
+                        annotated_frame,
+                        label_text,
+                        (x1_c + 5, badge_y2 - 4),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.5,
+                        (255, 255, 255),
+                        1,
+                        cv2.LINE_AA,
+                    )
+
+            # Draw Surveillance OSD Header Overlay
+            banner_h = 36
+            overlay = annotated_frame.copy()
+            cv2.rectangle(overlay, (0, 0), (width, banner_h), (15, 23, 42), -1)
+            cv2.addWeighted(overlay, 0.82, annotated_frame, 0.18, 0, annotated_frame)
+            cv2.line(annotated_frame, (0, banner_h), (width, banner_h), (59, 130, 246), 2)
+
+            # Red recording indicator circle
+            cv2.circle(annotated_frame, (20, 18), 6, (0, 0, 240), -1)
+
+            osd_text = (
+                f"CAM: {camera_id.upper()}  |  REC  |  "
+                f"SYNC TIME: {clock_str}  |  TRACKS: {active_tracks_count:02d}  |  "
+                f"FPS: {fps:.1f}"
+            )
+            cv2.putText(
+                annotated_frame,
+                osd_text,
+                (35, 24),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.55,
+                (240, 240, 240),
+                1,
+                cv2.LINE_AA,
+            )
+
             if video_writer:
-                video_writer.write(annotated_frame)
+                if use_imageio:
+                    video_writer.append_data(cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB))
+                else:
+                    video_writer.write(annotated_frame)
 
             frame_idx += 1
 
     finally:
         cap.release()
         if video_writer:
-            video_writer.release()
+            if use_imageio:
+                video_writer.close()
+            else:
+                video_writer.release()
+            logger.info("Saved annotated video to %s", annotated_video_path)
 
     # Filter short tracklets
     filtered = filter_tracklets_by_length(raw_tracklets, min_len=min_len)

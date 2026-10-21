@@ -1,10 +1,13 @@
-"""Multi-Camera Incident Investigation Console (Streamlit Web Application).
+"""Industrial Multi-Camera Incident Surveillance & Journey Reconstruction Console.
 
 Accepts:
 - 1 Main Video (Incident Scene)
 - Multiple Background CCTV Footages (Surrounding Camera Network)
 Performs:
-- Cross-camera vehicle re-identification and upstream journey reconstruction.
+- Synchronized multi-camera vehicle tracking with H.264 annotated video replay.
+- Automated kinematic incident detection (emergency deceleration / vehicle stalls).
+- Deep metric vehicle re-identification (FastReID SBS ResNet-50-IBN).
+- Spatio-temporal upstream journey reconstruction and forensic side-by-side verification.
 """
 
 from __future__ import annotations
@@ -12,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
+import urllib.request
 from pathlib import Path
 
 # Ensure project src is in python path
@@ -29,59 +33,148 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("app")
 
 st.set_page_config(
-    page_title="Multi-Camera Incident Search Console",
+    page_title="SENTINEL | Multi-Camera Incident Reconstruction Console",
     page_icon="🚔",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
+# Custom Command-Center Styling
 st.markdown(
     """
     <style>
+    .reportview-container, .main {
+        background-color: #0B0F19;
+    }
+    .header-box {
+        background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+        border: 1px solid #334155;
+        border-radius: 10px;
+        padding: 20px 24px;
+        margin-bottom: 20px;
+    }
     .main-title {
-        font-size: 2.2rem;
+        font-size: 2.1rem;
         font-weight: 800;
-        color: #0F172A;
-        margin-bottom: 0.1rem;
+        color: #F8FAFC;
+        margin: 0;
+        letter-spacing: -0.5px;
     }
-    .sub-title {
-        color: #475569;
-        font-size: 1.05rem;
-        margin-bottom: 1.5rem;
+    .main-subtitle {
+        color: #94A3B8;
+        font-size: 1.0rem;
+        margin-top: 6px;
+        margin-bottom: 0px;
     }
-    .incident-badge {
-        background-color: #EF4444;
-        color: white;
-        padding: 4px 10px;
-        border-radius: 6px;
+    .status-badge {
+        display: inline-block;
+        padding: 3px 9px;
+        border-radius: 4px;
+        font-size: 0.75rem;
         font-weight: 700;
-        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
-    .cctv-badge {
-        background-color: #3B82F6;
-        color: white;
-        padding: 4px 10px;
-        border-radius: 6px;
+    .badge-incident { background-color: #DC2626; color: #FFFFFF; }
+    .badge-cctv { background-color: #2563EB; color: #FFFFFF; }
+    .badge-success { background-color: #059669; color: #FFFFFF; }
+    .badge-clock { background-color: #334155; color: #E2E8F0; font-family: monospace; }
+
+    .timeline-card {
+        background-color: #1E293B;
+        border: 1px solid #3B82F6;
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin: 15px 0px;
+    }
+    .sighting-card {
+        background-color: #0F172A;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        padding: 14px;
+        margin-bottom: 12px;
+    }
+    .metric-value {
+        font-size: 1.4rem;
         font-weight: 700;
-        font-size: 0.85rem;
+        color: #F8FAFC;
     }
-    .journey-timeline {
-        background-color: #F8FAFC;
-        border-left: 4px solid #3B82F6;
-        padding: 12px 18px;
-        border-radius: 6px;
-        margin-bottom: 15px;
+    .metric-label {
+        font-size: 0.8rem;
+        color: #94A3B8;
+        text-transform: uppercase;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-st.markdown('<div class="main-title">🚔 Multi-Camera Incident Investigation Console</div>', unsafe_allow_html=True)
-st.markdown(
-    '<div class="sub-title">1 Main Incident Feed + Multiple Background CCTV Footages ➔ Cross-Camera Journey Reconstruction.</div>',
-    unsafe_allow_html=True,
-)
+
+def format_surveillance_clock(seconds: float, base_hour: int = 14, base_minute: int = 30) -> str:
+    """Format elapsed seconds into synchronized surveillance clock string HH:MM:SS.f."""
+    total_sec = max(0.0, seconds)
+    mins, secs = divmod(total_sec, 60.0)
+    hours, mins = divmod(mins, 60.0)
+    h = int((base_hour + hours) % 24)
+    m = int((base_minute + mins) % 60)
+    s = int(secs)
+    cs = int((secs - s) * 10)
+    return f"{h:02d}:{m:02d}:{s:02d}.{cs:01d}"
+
+
+def format_time_delta(delta_s: float) -> str:
+    """Format time difference relative to incident."""
+    sign = "-" if delta_s < 0 else "+"
+    sec = abs(delta_s)
+    m, s = divmod(sec, 60)
+    if m > 0:
+        return f"{sign}{int(m)}m {s:.1f}s"
+    return f"{sign}{s:.1f}s"
+
+
+# Sample Video Feeds (Curated High-Definition Multi-Camera Suite)
+SAMPLE_FEEDS = {
+    "cam1_main": {
+        "id": "CAM_01_DOWNTOWN_MAIN",
+        "name": "Downtown Crosswalk (Main Incident Scene)",
+        "file": "crosswalk_red_car.mp4",
+        "url": "https://github.com/aparsoft/yolo-streamlit-detection-tracking/releases/download/sample-videos/crosswalk_red_car.mp4",
+        "offset": 0.0,
+        "desc": "Primary intersection feed. Shows crossing pedestrians, traffic flow, and red suspect sedan.",
+    },
+    "cam2_west": {
+        "id": "CAM_02_WEST_JUNCTION",
+        "name": "West Avenue Junction (Upstream CCTV)",
+        "file": "busy_intersection.mp4",
+        "url": "https://github.com/aparsoft/yolo-streamlit-detection-tracking/releases/download/sample-videos/busy_intersection.mp4",
+        "offset": -180.0,
+        "desc": "Arterial junction 450m west of incident. Monitors incoming and turning vehicles.",
+    },
+    "cam3_bridge": {
+        "id": "CAM_03_HIGHWAY_BRIDGE",
+        "name": "Highway Bridge Corridor (Perimeter CCTV)",
+        "file": "highway_bridge_traffic.mp4",
+        "url": "https://github.com/aparsoft/yolo-streamlit-detection-tracking/releases/download/sample-videos/highway_bridge_traffic.mp4",
+        "offset": -360.0,
+        "desc": "Perimeter elevated camera 1.2km upstream. Observes vehicles entering from highway.",
+    },
+}
+
+
+def ensure_sample_video(key: str) -> Path:
+    info = SAMPLE_FEEDS[key]
+    dest_dir = Path("data/raw/samples")
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest_file = dest_dir / info["file"]
+    if not dest_file.exists() or dest_file.stat().st_size == 0:
+        logger.info("Downloading %s from %s...", info["file"], info["url"])
+        try:
+            req = urllib.request.Request(info["url"], headers={"User-Agent": "Sentinel-Console"})
+            data = urllib.request.urlopen(req, timeout=60).read()
+            dest_file.write_bytes(data)
+        except Exception as e:
+            logger.warning("Download failed for %s: %s", info["file"], e)
+    return dest_file
 
 
 @st.cache_resource
@@ -92,7 +185,7 @@ def get_pipeline():
 
 pipeline = get_pipeline()
 
-# Session State
+# Session State Initialization
 if "main_video_processed" not in st.session_state:
     st.session_state["main_video_processed"] = False
 if "bg_videos_processed" not in st.session_state:
@@ -103,129 +196,158 @@ if "selected_query_trk" not in st.session_state:
     st.session_state["selected_query_trk"] = None
 if "journey_result" not in st.session_state:
     st.session_state["journey_result"] = None
+if "active_cctv_view" not in st.session_state:
+    st.session_state["active_cctv_view"] = None
 
-# Sidebar Controls
+# Header Banner
+st.markdown(
+    """
+    <div class="header-box">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1 class="main-title">🚨 SENTINEL | Multi-Camera Incident Investigation Console</h1>
+                <p class="main-subtitle">Automated Kinematic Incident Detection ➔ Multi-CCTV Vehicle Search ➔ Journey Reconstruction</p>
+            </div>
+            <div style="text-align: right;">
+                <span class="status-badge badge-clock">SYNC TIME: 14:30:00 EST</span><br>
+                <span class="status-badge badge-incident" style="margin-top:6px;">INVESTIGATION ACTIVE</span>
+            </div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Sidebar: Investigation Controls & Surveillance Feed Setup
 with st.sidebar:
-    st.header("⚙️ Investigation Parameters")
-    time_window_s = st.slider(
-        "Max Upstream Time Window (s)",
-        min_value=30,
-        max_value=900,
-        value=300,
-        step=30,
-        help="Search window looking backward in time before the incident.",
+    st.header("⚙️ Surveillance Control")
+    feed_mode = st.radio(
+        "Surveillance Feed Mode",
+        ["High-Definition Multi-Camera Suite (Default)", "Upload Custom Camera Videos"],
+        index=0,
     )
-    alpha = st.slider(
+
+    st.markdown("---")
+    st.subheader("⏱️ Spatio-Temporal Parameters")
+    lookback_window = st.slider(
+        "Max Upstream Search Window (s)",
+        min_value=60,
+        max_value=900,
+        value=600,
+        step=30,
+        help="Search window looking backward in time prior to incident.",
+    )
+    prior_weight = st.slider(
         "Spatio-Temporal Prior Weight (α)",
         min_value=0.0,
-        max_value=0.3,
-        value=0.05,
+        max_value=0.30,
+        value=0.08,
         step=0.01,
-        help="Weight assigned to transition graph / travel-time prior.",
+        help="Weight for camera transition graph & travel-time prior.",
     )
-    min_match_score = st.slider(
-        "Minimum Match Score",
+    match_threshold = st.slider(
+        "Re-ID Similarity Threshold",
         min_value=0.10,
-        max_value=0.80,
+        max_value=0.85,
         value=0.25,
         step=0.05,
-        help="Confidence threshold for displaying background CCTV sightings.",
+        help="Minimum confidence required to confirm a background camera sighting.",
     )
-    max_frames = st.number_input(
-        "Max Frames to Ingest per Video",
+    max_frames_to_process = st.number_input(
+        "Max Frames to Ingest per Camera",
         min_value=30,
         max_value=1200,
         value=200,
         step=50,
-        help="Use 150-300 frames for fast interactive search.",
+        help="Ingest 150-300 frames per feed for fast interactive tracking.",
     )
 
     st.markdown("---")
-    st.subheader("📹 Input Source Selection")
-    data_mode = st.radio("Feeds Mode", ["Use Built-in Surveillance Feeds", "Upload Your Own Videos"])
+    st.caption("Backend: YOLO11 + ByteTrack + FastReID SBS (VeRi-776)")
 
+
+# Tabs for 3-Step Investigation Workflow
 tab1, tab2, tab3 = st.tabs([
-    "1️⃣ Ingest Feeds (Main + Background CCTV)",
-    "2️⃣ Incident Spotting & Target Selection",
-    "3️⃣ Cross-Camera Route & Journey Retrieval",
+    "1️⃣ Surveillance Wall & Feeds (YOLO Replay)",
+    "2️⃣ Incident Spotting & Suspect Lock",
+    "3️⃣ Cross-Camera Route & Forensic Verification",
 ])
 
-def ensure_sample_video() -> Path:
-    sample_dir = Path("data/raw/samples")
-    sample_dir.mkdir(parents=True, exist_ok=True)
-    sample_file = sample_dir / "demo_traffic.mp4"
-    if not sample_file.exists() or sample_file.stat().st_size == 0:
-        url = "https://upload.wikimedia.org/wikipedia/commons/6/68/Avtocesta.webm"
-        import urllib.request
-        try:
-            logger.info("Auto-downloading demo traffic video from %s...", url)
-            urllib.request.urlretrieve(url, str(sample_file))
-        except Exception as e:
-            logger.warning("Could not auto-download sample video: %s", e)
-    return sample_file
-
-
-sample_path = ensure_sample_video()
-
 # ==============================================================================
-# TAB 1: INGEST FEEDS
+# TAB 1: SURVEILLANCE WALL & VIDEO INGESTION
 # ==============================================================================
 with tab1:
-    st.markdown("### Step 1: Supply the Main Incident Video & Background CCTV Footages")
+    st.markdown("### Step 1: Multi-Camera Feed Ingestion & Tracking Overlays")
+    st.write(
+        "Process surveillance feeds to generate YOLO tracking bounding boxes, unique vehicle IDs, "
+        "and synchronized timecode overlays."
+    )
 
-    col_main, col_bg = st.columns([1, 1])
+    col_main_setup, col_bg_setup = st.columns([1, 1])
 
-    with col_main:
-        st.markdown("#### 🚨 Primary Main Video <span class='incident-badge'>INCIDENT SCENE</span>", unsafe_allow_html=True)
-        main_cam_id = st.text_input("Main Camera Identifier", value="Main_Cam_Incident")
-        main_offset = st.number_input("Main Camera Time Offset (s)", value=0.0, step=1.0)
+    # Main Camera Setup
+    with col_main_setup:
+        st.markdown(
+            "#### 🚨 Primary Incident Feed <span class='status-badge badge-incident'>INCIDENT SCENE</span>",
+            unsafe_allow_html=True,
+        )
 
-        main_video_file = None
-        if data_mode == "Use Built-in Surveillance Feeds":
-            main_video_file = sample_path if sample_path.exists() else None
-            st.caption(f"Using sample feed: `{main_video_file}`")
+        main_cam_id = SAMPLE_FEEDS["cam1_main"]["id"]
+        main_video_path = None
+
+        if feed_mode == "High-Definition Multi-Camera Suite (Default)":
+            main_video_path = ensure_sample_video("cam1_main")
+            st.info(f"**Camera:** `{main_cam_id}`\n\n**Location:** {SAMPLE_FEEDS['cam1_main']['name']}")
+            st.caption(f"File: `{main_video_path.name}` ({SAMPLE_FEEDS['cam1_main']['desc']})")
         else:
-            up_main = st.file_uploader("Upload Main Video (MP4 / AVI)", type=["mp4", "avi", "mov"], key="up_main")
+            main_cam_id = st.text_input("Main Camera ID", value="CAM_01_INCIDENT")
+            up_main = st.file_uploader("Upload Main Incident Video (MP4/AVI)", type=["mp4", "avi", "mov"], key="up_main")
             if up_main:
-                t_main = Path("outputs/uploads/main_video.mp4")
+                t_main = Path("outputs/uploads/main_incident.mp4")
                 t_main.parent.mkdir(parents=True, exist_ok=True)
                 t_main.write_bytes(up_main.read())
-                main_video_file = t_main
+                main_video_path = t_main
 
-        if st.button("Process Main Incident Video", type="primary", key="btn_proc_main"):
-            if main_video_file and Path(main_video_file).exists():
-                with st.spinner("Tracking vehicles in Main Incident video..."):
+        if st.button("▶ Process & Track Main Incident Video", type="primary", key="btn_main_track"):
+            if main_video_path and Path(main_video_path).exists():
+                with st.spinner(f"Running YOLO11 + ByteTrack on {main_cam_id}..."):
                     trks = pipeline.process_camera_video(
                         camera_id=main_cam_id,
-                        video_path=main_video_file,
-                        time_offset_s=float(main_offset),
+                        video_path=main_video_path,
+                        time_offset_s=0.0,
                         is_main=True,
-                        max_frames=int(max_frames),
+                        max_frames=int(max_frames_to_process),
                     )
                     st.session_state["main_video_processed"] = True
-                    # Run automated incident detection
                     incs = pipeline.detect_incidents_in_camera(main_cam_id)
                     st.session_state["detected_incidents"] = incs
                     st.success(f"Tracked {len(trks)} vehicles in {main_cam_id}! ({len(incs)} incidents detected)")
             else:
                 st.error("Main video file not found.")
 
-    with col_bg:
-        st.markdown("#### 📹 Background CCTV Network <span class='cctv-badge'>CCTV NETWORK</span>", unsafe_allow_html=True)
-        st.write("Upload or configure multiple surrounding camera feeds across the road network.")
+    # Background CCTV Setup
+    with col_bg_setup:
+        st.markdown(
+            "#### 📹 Background CCTV Network <span class='status-badge badge-cctv'>SURROUNDING NETWORK</span>",
+            unsafe_allow_html=True,
+        )
 
         bg_cams_to_run = []
-
-        if data_mode == "Use Built-in Surveillance Feeds":
-            st.caption("Configuring 2 surrounding background CCTV cameras using demo stream with time shifts:")
-            st.write("• **CCTV_North_Junction**: Offset -45s (Upstream junction)")
-            st.write("• **CCTV_Highway_Entry**: Offset -90s (Upstream highway ramp)")
-            if sample_path.exists():
-                bg_cams_to_run.append(("CCTV_North_Junction", sample_path, -45.0))
-                bg_cams_to_run.append(("CCTV_Highway_Entry", sample_path, -90.0))
+        if feed_mode == "High-Definition Multi-Camera Suite (Default)":
+            cam2_path = ensure_sample_video("cam2_west")
+            cam3_path = ensure_sample_video("cam3_bridge")
+            bg_cams_to_run = [
+                (SAMPLE_FEEDS["cam2_west"]["id"], cam2_path, SAMPLE_FEEDS["cam2_west"]["offset"], SAMPLE_FEEDS["cam2_west"]["name"]),
+                (SAMPLE_FEEDS["cam3_bridge"]["id"], cam3_path, SAMPLE_FEEDS["cam3_bridge"]["offset"], SAMPLE_FEEDS["cam3_bridge"]["name"]),
+            ]
+            st.info(
+                "**Registered Background Cameras:**\n\n"
+                f"• `{SAMPLE_FEEDS['cam2_west']['id']}` — {SAMPLE_FEEDS['cam2_west']['name']} (Offset -180s)\n\n"
+                f"• `{SAMPLE_FEEDS['cam3_bridge']['id']}` — {SAMPLE_FEEDS['cam3_bridge']['name']} (Offset -360s)"
+            )
         else:
             up_bgs = st.file_uploader(
-                "Upload Background CCTV Videos (Select Multiple)",
+                "Upload Background CCTV Videos (Multiple)",
                 type=["mp4", "avi", "mov"],
                 accept_multiple_files=True,
                 key="up_bgs",
@@ -235,105 +357,165 @@ with tab1:
                     t_bg = Path(f"outputs/uploads/cctv_cam_{idx + 1}.mp4")
                     t_bg.parent.mkdir(parents=True, exist_ok=True)
                     t_bg.write_bytes(f.read())
-                    cam_id = f"CCTV_Camera_{idx + 1}"
-                    offset = -(idx + 1) * 35.0  # Default staggered offset
-                    bg_cams_to_run.append((cam_id, t_bg, offset))
-                st.caption(f"Loaded {len(bg_cams_to_run)} background CCTV camera files.")
+                    bg_cams_to_run.append((f"CCTV_CAM_{idx + 1:02d}", t_bg, -(idx + 1) * 120.0, f"CCTV Node {idx + 1}"))
+                st.caption(f"Loaded {len(bg_cams_to_run)} background CCTV files.")
 
-        if st.button("Process & Index Background CCTV Feeds", type="secondary", key="btn_proc_bg"):
+        if st.button("▶ Process & Index Background CCTV Feeds", type="secondary", key="btn_bg_track"):
             if not bg_cams_to_run:
                 st.error("No background CCTV videos available.")
             else:
-                with st.spinner(f"Ingesting {len(bg_cams_to_run)} CCTV feeds into multi-camera index..."):
+                with st.spinner(f"Tracking and indexing {len(bg_cams_to_run)} background CCTV streams..."):
                     total_trks = 0
-                    for c_id, v_path, c_offset in bg_cams_to_run:
+                    for c_id, v_path, c_offset, _ in bg_cams_to_run:
                         t_list = pipeline.process_camera_video(
                             camera_id=c_id,
                             video_path=v_path,
                             time_offset_s=float(c_offset),
                             is_main=False,
-                            max_frames=int(max_frames),
+                            max_frames=int(max_frames_to_process),
                         )
                         total_trks += len(t_list)
                     st.session_state["bg_videos_processed"] = True
                     st.success(f"Indexed {total_trks} vehicles across {len(bg_cams_to_run)} background CCTV cameras!")
 
+    # Multi-Camera Video Replay Wall
     st.markdown("---")
-    st.markdown("#### 📊 Unified Multi-Camera Index Status")
-    s1, s2, s3 = st.columns(3)
-    main_count = len([t for t in pipeline.tracklets if t.camera_id == pipeline.main_camera_id])
-    bg_count = len([t for t in pipeline.tracklets if t.camera_id in pipeline.background_camera_ids])
-    s1.metric("Main Video Vehicles", main_count)
-    s2.metric("Background CCTV Vehicles", bg_count)
-    s3.metric("Registered Background Cameras", len(pipeline.background_camera_ids))
+    st.markdown("### 🖥️ Surveillance Video Player & Tracking Replay")
+    st.caption("Inspect full-motion video feeds with YOLO bounding boxes, vehicle classes, and synchronized timecode watermarks.")
+
+    all_cams = []
+    if pipeline.main_camera_id:
+        all_cams.append(pipeline.main_camera_id)
+    all_cams.extend([c for c in pipeline.background_camera_ids if c not in all_cams])
+
+    if not all_cams:
+        st.info("No camera feeds processed yet. Click the tracking buttons above to render annotated feeds.")
+    else:
+        selected_cam_to_view = st.selectbox(
+            "Select Surveillance Camera Feed to Play:",
+            all_cams,
+            format_func=lambda cid: f"🚨 {cid} (Main Incident Feed)" if cid == pipeline.main_camera_id else f"📹 {cid} (CCTV Node)",
+        )
+
+        v_path = pipeline.annotated_videos.get(selected_cam_to_view)
+        if v_path and Path(v_path).exists():
+            v_col, stat_col = st.columns([2, 1])
+            with v_col:
+                st.video(str(v_path))
+            with stat_col:
+                cam_trks = [t for t in pipeline.tracklets if t.camera_id == selected_cam_to_view]
+                st.markdown(f"#### Camera Status: `{selected_cam_to_view}`")
+                st.write(f"• **Type:** {'Main Incident Feed' if selected_cam_to_view == pipeline.main_camera_id else 'Surrounding CCTV Feed'}")
+                st.write(f"• **Vehicles Tracked:** `{len(cam_trks)}`")
+                offset = pipeline.camera_offsets.get(selected_cam_to_view, 0.0)
+                st.write(f"• **Sync Time Origin:** `{format_surveillance_clock(offset)}`")
+                if cam_trks:
+                    classes = {}
+                    for t in cam_trks:
+                        classes[t.vehicle_class] = classes.get(t.vehicle_class, 0) + 1
+                    breakdown_str = ", ".join([f"{count} {c}s" for c, count in classes.items()])
+                    st.write(f"• **Classification Breakdown:** {breakdown_str}")
+        else:
+            st.warning(f"Annotated video for {selected_cam_to_view} is not available or processing incomplete.")
 
 # ==============================================================================
-# TAB 2: INCIDENT DETECTION & TARGET SELECTION
+# TAB 2: INCIDENT DETECTION & SUSPECT VEHICLE LOCK
 # ==============================================================================
 with tab2:
-    st.markdown("### Step 2: Identify Suspect Vehicle in the Main Video")
+    st.markdown("### Step 2: Automated Incident Pinpointing & Target Vehicle Selection")
+    st.write("Review kinematic incident alerts or visually lock the suspect vehicle observed in the Main Video.")
 
     if not st.session_state["main_video_processed"]:
         st.warning("Please process the Main Incident Video in Tab 1 first.")
     else:
         main_trks = [t for t in pipeline.tracklets if t.camera_id == pipeline.main_camera_id and t.crop_paths]
 
-        # 1. Automated Incident Alerts
+        # 1. Kinematic Incident Alerts
         incs = st.session_state["detected_incidents"]
         if incs:
-            st.error(f"🚨 {len(incs)} Automated Incident(s) Detected in Main Video:")
+            st.error(f"🚨 {len(incs)} Automated Kinematic Incident Alert(s) Detected:")
             for inc in incs:
-                st.write(f"• **{inc.incident_id}** at t={inc.time_s:.1f}s: {inc.description} (Confidence: {inc.confidence:.2f})")
-                if st.button(f"Investigate Incident {inc.incident_id}", key=f"btn_inc_{inc.incident_id}"):
-                    matched_trk = next((t for t in main_trks if t.tracklet_id in inc.involved_tracklet_ids), None)
-                    if matched_trk:
-                        st.session_state["selected_query_trk"] = matched_trk
+                ic1, ic2 = st.columns([3, 1])
+                with ic1:
+                    st.write(
+                        f"• **Incident `{inc.incident_id}`** at "
+                        f"🕒 `{format_surveillance_clock(inc.time_s)}`: "
+                        f"**{inc.description}** (Confidence: `{inc.confidence * 100:.1f}%`)"
+                    )
+                with ic2:
+                    if st.button(f"Lock Target from {inc.incident_id}", key=f"btn_inc_{inc.incident_id}"):
+                        matched = next((t for t in main_trks if t.tracklet_id in inc.involved_tracklet_ids), None)
+                        if matched:
+                            st.session_state["selected_query_trk"] = matched
         else:
-            st.info("No sudden stop or kinematic collision flagged automatically. You can select any target vehicle below.")
+            st.info("No sudden stop or collision flagged automatically. Select suspect vehicle manually below.")
 
         st.markdown("---")
-        st.markdown("#### Pick Suspect Vehicle from Main Video:")
+        st.markdown("#### Visual Suspect Vehicle Selector (Main Video)")
+        st.caption("Click any tracked vehicle from the incident scene to set it as the primary cross-camera query target.")
 
         if not main_trks:
             st.warning("No vehicle crops available from Main Video.")
         else:
-            q_cols = st.columns(min(len(main_trks), 6))
-            for idx, trk in enumerate(main_trks[:6]):
+            # Display vehicle crops in responsive grid
+            n_cols = min(max(len(main_trks), 1), 5)
+            q_cols = st.columns(n_cols)
+            for idx, trk in enumerate(main_trks[:10]):
+                col_idx = idx % n_cols
                 v_crops = [p for p in trk.crop_paths if Path(p).exists()]
                 if v_crops:
                     img = Image.open(v_crops[len(v_crops) // 2])
-                    with q_cols[idx]:
+                    with q_cols[col_idx]:
                         st.image(img, use_container_width=True)
-                        st.caption(f"ID: `{trk.tracklet_id}`\nt={trk.start_time_s:.1f}s")
-                        if st.button("Select Car", key=f"sel_main_{trk.tracklet_id}"):
+                        st.caption(
+                            f"**ID:** `{trk.tracklet_id}`\n\n"
+                            f"**Class:** `{trk.vehicle_class.upper()}`\n\n"
+                            f"🕒 `{format_surveillance_clock(trk.start_time_s)}`"
+                        )
+                        if st.button("🎯 Lock This Car", key=f"sel_main_{trk.tracklet_id}"):
                             st.session_state["selected_query_trk"] = trk
 
         selected = st.session_state["selected_query_trk"]
         if selected:
-            st.success(f"🎯 Target Vehicle Selected: **{selected.tracklet_id}** (First seen at {selected.start_time_s:.1f}s)")
+            st.markdown("---")
+            st.markdown(
+                f"""
+                <div class="timeline-card">
+                    <span class="status-badge badge-incident">QUERY TARGET LOCKED</span><br>
+                    <h3 style="margin: 8px 0px 4px 0px; color:#F8FAFC;">Suspect Target: {selected.tracklet_id} ({selected.vehicle_class.upper()})</h3>
+                    <p style="color:#94A3B8; margin:0;">
+                        Observed at <b>{selected.camera_id}</b> | Timestamp: <b>{format_surveillance_clock(selected.start_time_s)} EST</b> | Duration: <b>{selected.end_time_s - selected.start_time_s:.1f}s</b>
+                    </p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 # ==============================================================================
-# TAB 3: CROSS-CAMERA RETRIEVAL & JOURNEY
+# TAB 3: SPATIO-TEMPORAL JOURNEY RECONSTRUCTION & FORENSIC VERIFICATION
 # ==============================================================================
 with tab3:
-    st.markdown("### Step 3: Cross-Camera Vehicle Journey Reconstruction")
-    st.write("Searches across all background CCTV footages backward in time to reconstruct the suspect's path.")
+    st.markdown("### Step 3: Spatio-Temporal Journey Reconstruction & Verification")
+    st.write(
+        "Searches upstream across the entire background CCTV network. Computes visual Re-ID cosine similarity "
+        "and filters candidates with topological travel-time constraints."
+    )
 
     target = st.session_state["selected_query_trk"]
 
     if not target:
-        st.warning("Please select a target vehicle from the Main Video in Tab 2 first.")
+        st.warning("Please select and lock a suspect vehicle in Tab 2 first.")
     elif not st.session_state["bg_videos_processed"]:
-        st.warning("Please process the Background CCTV Feeds in Tab 1 first.")
+        st.warning("Please process background CCTV feeds in Tab 1 first.")
     else:
-        # Run Journey Reconstruction
-        if st.button("🚀 Reconstruct Cross-Camera Journey", type="primary"):
-            with st.spinner("Searching background CCTV network and computing spatiotemporal route..."):
+        # Run Journey Reconstruction Trigger
+        if st.button("🚀 Reconstruct Upstream Vehicle Journey", type="primary", key="btn_run_journey"):
+            with st.spinner("Searching background CCTV network and computing spatio-temporal route..."):
                 j_res: JourneyResult = pipeline.trigger_incident_search(
                     query_tracklet=target,
-                    time_window_s=float(time_window_s),
-                    alpha=float(alpha),
-                    min_score=float(min_match_score),
+                    time_window_s=float(lookback_window),
+                    alpha=float(prior_weight),
+                    min_score=float(match_threshold),
                 )
                 st.session_state["journey_result"] = j_res
 
@@ -341,73 +523,119 @@ with tab3:
 
         if res is not None:
             st.markdown("---")
-            st.markdown("### 🗺️ Reconstructed Upstream Route")
+            # Chronological Route Breadcrumb Bar
+            st.markdown("#### 🗺️ Reconstructed Chronological Vehicle Route")
             st.markdown(
-                f"<div class='journey-timeline'><b>Vehicle Path (Earliest ➔ Incident):</b><br><h3>{res.route_str}</h3></div>",
+                f"""
+                <div class="timeline-card">
+                    <div class="metric-label" style="color: #60A5FA;">EARLIEST PERIMETER SIGHTING ────▶ INCIDENT SCENE:</div>
+                    <div style="font-size: 1.35rem; font-weight: 800; color: #FFFFFF; margin-top: 6px;">
+                        {res.route_str}
+                    </div>
+                </div>
+                """,
                 unsafe_allow_html=True,
             )
 
-            # Metrics
-            m1, m2, m3 = st.columns(3)
+            # Quantitative Efficiency Metrics
+            m1, m2, m3, m4 = st.columns(4)
             m1.metric("CCTV Candidates Evaluated", res.candidates_evaluated)
-            m2.metric("Spatiotemporal Pruning", f"{res.pruning_reduction * 100:.1f}%")
-            m3.metric("CCTV Cameras with Confirmed Matches", len(res.sightings))
+            m2.metric("Spatio-Temporal Pruning", f"{res.pruning_reduction * 100:.1f}%")
+            m3.metric("Confirmed Sightings", len(res.sightings))
+            m4.metric("Incident Timestamp", format_surveillance_clock(res.incident.time_s))
 
             st.markdown("---")
-            st.markdown("### 🔍 Sighting Verification Cards")
+            st.markdown("### 🔍 Forensic Side-by-Side Sighting Verification Center")
+            st.caption("Verify each confirmed background CCTV observation directly against the incident query vehicle.")
 
-            col_q, col_matches = st.columns([1, 2])
+            if not res.sightings:
+                st.info("No matching vehicles found in background CCTV cameras within the temporal search window.")
+            else:
+                for s_idx, sighting in enumerate(res.sightings):
+                    st.markdown(
+                        f"""
+                        <div class="sighting-card">
+                            <span class="status-badge badge-cctv">SIGHTING #{s_idx + 1}</span>
+                            <span class="status-badge badge-clock">CAMERA: {sighting.camera_id}</span>
+                            <span class="status-badge badge-success">MATCH SCORE: {sighting.score:.3f}</span>
+                            <span class="status-badge badge-clock">DELTA: {format_time_delta(sighting.time_delta_s)} UPSTREAM</span>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
 
-            with col_q:
-                st.markdown("#### 🚨 Query Vehicle (Main Video)")
-                if res.query_crop_path and Path(res.query_crop_path).exists():
-                    st.image(Image.open(res.query_crop_path), use_container_width=True)
-                st.write(f"• **Camera:** `{res.incident.camera_id}`")
-                st.write(f"• **Tracklet:** `{res.query_tracklet.tracklet_id}`")
-                st.write(f"• **Incident Time:** `{res.incident.time_s:.1f}s`")
-                st.write(f"• **Class:** `{res.query_tracklet.vehicle_class}`")
+                    s_col_query, s_col_candidate, s_col_cctv_video = st.columns([1, 1, 1.4])
 
-            with col_matches:
-                st.markdown("#### 📸 Retrieved Sightings in Surrounding CCTV Cameras")
-                if not res.sightings:
-                    st.info("No matching vehicles found in background CCTV cameras within the temporal search window.")
-                else:
-                    for s_idx, sighting in enumerate(res.sightings):
-                        st.markdown(f"##### Sighting #{s_idx + 1} — Camera: `{sighting.camera_id}`")
-                        sc1, sc2 = st.columns([1, 2])
-                        with sc1:
-                            if sighting.crop_path and Path(sighting.crop_path).exists():
-                                st.image(Image.open(sighting.crop_path), use_container_width=True)
-                        with sc2:
-                            st.write(f"• **Match Score:** `{sighting.score:.3f}` (Appearance: {sighting.appearance_score:.3f})")
-                            st.write(f"• **Observation Timestamp:** `{sighting.timestamp_s:.1f}s`")
-                            st.write(f"• **Time Delta to Incident:** `{sighting.time_delta_s:+.1f}s` upstream")
-                            st.write(f"• **Tracklet ID:** `{sighting.tracklet.tracklet_id}`")
-                        st.markdown("---")
+                    # 1. Query Vehicle
+                    with s_col_query:
+                        st.markdown("##### 🚨 Incident Query Vehicle")
+                        if res.query_crop_path and Path(res.query_crop_path).exists():
+                            st.image(Image.open(res.query_crop_path), use_container_width=True)
+                        st.caption(
+                            f"**Camera:** `{res.incident.camera_id}`\n\n"
+                            f"**Track:** `{res.query_tracklet.tracklet_id}`\n\n"
+                            f"🕒 `{format_surveillance_clock(res.incident.time_s)}`"
+                        )
 
-            # JSON Dossier Export
+                    # 2. Retrieved CCTV Candidate
+                    with s_col_candidate:
+                        st.markdown("##### 📸 Retrieved CCTV Candidate")
+                        if sighting.crop_path and Path(sighting.crop_path).exists():
+                            st.image(Image.open(sighting.crop_path), use_container_width=True)
+                        st.caption(
+                            f"**Camera:** `{sighting.camera_id}`\n\n"
+                            f"**Track:** `{sighting.tracklet.tracklet_id}`\n\n"
+                            f"🕒 `{format_surveillance_clock(sighting.timestamp_s)}`"
+                        )
+                        st.write(
+                            f"• **Visual Similarity:** `{sighting.appearance_score:.3f}`\n\n"
+                            f"• **Spatio-Temporal Prior:** `{sighting.score - sighting.appearance_score:.3f}`"
+                        )
+
+                    # 3. Context & CCTV Video Snippet
+                    with s_col_cctv_video:
+                        st.markdown("##### 📹 CCTV Stream Playback")
+                        cam_v_path = pipeline.annotated_videos.get(sighting.camera_id)
+                        if cam_v_path and Path(cam_v_path).exists():
+                            st.video(str(cam_v_path))
+                        else:
+                            st.info("CCTV video stream available in Tab 1.")
+
+                    st.markdown("---")
+
+            # Structured Police / Legal Case Dossier Export
             dossier = {
-                "incident_id": res.incident.incident_id,
-                "incident_camera": res.incident.camera_id,
-                "incident_time_s": res.incident.time_s,
-                "query_tracklet_id": res.query_tracklet.tracklet_id,
-                "reconstructed_route": res.route_str,
-                "sightings": [
+                "case_id": "CASE-2026-INCIDENT-SEARCH",
+                "incident": {
+                    "incident_id": res.incident.incident_id,
+                    "camera_id": res.incident.camera_id,
+                    "timestamp": format_surveillance_clock(res.incident.time_s),
+                    "timestamp_raw_s": res.incident.time_s,
+                    "description": res.incident.description,
+                },
+                "query_target": {
+                    "tracklet_id": res.query_tracklet.tracklet_id,
+                    "vehicle_class": res.query_tracklet.vehicle_class,
+                },
+                "reconstructed_journey_route": res.route_str,
+                "sightings_audit_trail": [
                     {
+                        "sighting_index": idx + 1,
                         "camera_id": s.camera_id,
-                        "timestamp_s": s.timestamp_s,
-                        "time_delta_s": s.time_delta_s,
-                        "match_score": round(s.score, 3),
-                        "appearance_score": round(s.appearance_score, 3),
+                        "timestamp": format_surveillance_clock(s.timestamp_s),
+                        "time_delta_to_incident": format_time_delta(s.time_delta_s),
+                        "composite_match_score": round(s.score, 4),
+                        "appearance_cosine_score": round(s.appearance_score, 4),
                         "tracklet_id": s.tracklet.tracklet_id,
                     }
-                    for s in res.sightings
+                    for idx, s in enumerate(res.sightings)
                 ],
             }
 
             st.download_button(
-                label="📥 Export Investigation Case Dossier (JSON)",
+                label="📥 Export Forensic Investigation Case Dossier (JSON)",
                 data=json.dumps(dossier, indent=2),
                 file_name=f"investigation_dossier_{res.incident.incident_id}.json",
                 mime="application/json",
+                type="primary",
             )
