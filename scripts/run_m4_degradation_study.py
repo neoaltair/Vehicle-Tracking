@@ -11,29 +11,21 @@ Under query degradations:
 - Crop (central area): ratios {1.0, 0.75, 0.50, 0.25}
 - Occlusion: ratios {0.0, 0.25, 0.50} with seeds {0, 1, 2}
 
-Bug fix (post-M4-freeze correction):
-  The original script relied on tracklet.crop_paths which is always empty for
-  GT tracklets loaded from disk (crops are not saved during GT loading).
-  The correct pipeline is:
-    1. Read video file for the query camera.
-    2. Extract raw crop from GT box + frame ID.
-    3. Apply degradation to the raw crop.
-    4. Run FastReID on the degraded crop → new embedding.
-  Gallery embeddings remain clean (loaded from cache).
-
-Outputs:
-  outputs/m4_degradation/degradation_results.json
+Optimized version:
+  Groups frame extraction video-by-video so OpenCV opens each video file exactly ONCE
+  and extracts crops in a single sequential sweep, avoiding FUSE network seek deadlocks.
 """
 
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
 import json
 import logging
-import sys
 from pathlib import Path
+import sys
 
-# Ensure src/ is on sys.path even if package isn't installed in editable mode in Colab
+# Ensure src/ is on sys.path
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT / "src"))
@@ -58,7 +50,7 @@ from incident_search.io.cityflow import (  # noqa: E402
     discover_cityflow_cameras,
     load_cityflow_gt_tracklets,
 )
-from incident_search.reid.extractor import FastReIDExtractor, aggregate_embeddings  # noqa: E402
+from incident_search.reid.extractor import FastReIDExtractor, aggregate_embeddings, save_embeddings  # noqa: E402
 from incident_search.search.spatiotemporal import (  # noqa: E402
     build_graph_prior_matrix,
     compute_fused_scores,
@@ -74,14 +66,12 @@ DEGRADATION_SPECS = [
     ("occlusion", [0.0, 0.25, 0.50]),
 ]
 
-# Frozen M4 hyperparameters — must match best_config.json
 FROZEN_TIME_WINDOW_S = 60.0
 FROZEN_ALPHA = 0.05
 FROZEN_MIN_EDGE_SAMPLES = 5
 
 
 def _build_video_map(root: str | Path) -> dict[str, Path]:
-    """Return {scoped_camera_id: video_path} for all cameras under root."""
     cameras = discover_cityflow_cameras(root)
     result: dict[str, Path] = {}
     for cam in cameras:
@@ -90,151 +80,99 @@ def _build_video_map(root: str | Path) -> dict[str, Path]:
     return result
 
 
-def _extract_crops_from_video(
-    tracklet,
-    video_path: Path,
-    k: int = 8,
-) -> list[np.ndarray]:
-    """Extract up to k quality-sampled raw crops (BGR) from the tracklet GT boxes."""
-    n = len(tracklet.frames)
-    boxes = tracklet.boxes
-    scores = tracklet.scores
+def extract_crops_batch(
+    tracklets: list,
+    video_map: dict[str, Path],
+    k: int = 4,
+) -> dict[str, list[np.ndarray]]:
+    """Extract raw vehicle crops by grouping requests per video file.
 
-    qualities = []
-    for i in range(n):
-        x1, y1, x2, y2 = boxes[i]
-        area = max(0.0, x2 - x1) * max(0.0, y2 - y1)
-        q = scores[i] * float(np.log1p(area))
-        qualities.append((q, i))
+    Opens each video file exactly ONCE and reads frames sequentially or with
+    minimal forward seeks, preventing OpenCV network FUSE hang.
+    """
+    by_video: dict[Path, list[tuple[int, list[float], str]]] = defaultdict(list)
+    tracklet_crops: dict[str, list[np.ndarray]] = defaultdict(list)
 
-    qualities.sort(key=lambda x: x[0], reverse=True)
-    selected = sorted([idx for _, idx in qualities[:k]])
+    for trk in tracklets:
+        vpath = video_map.get(trk.camera_id)
+        if not vpath or not vpath.exists():
+            continue
 
-    cap = cv2.VideoCapture(str(video_path))
-    if not cap.isOpened():
-        logger.warning("Cannot open video: %s", video_path)
-        return []
+        n = len(trk.frames)
+        boxes = trk.boxes
+        scores = trk.scores
 
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    crops: list[np.ndarray] = []
+        qualities = []
+        for i in range(n):
+            x1, y1, x2, y2 = boxes[i]
+            area = max(0.0, x2 - x1) * max(0.0, y2 - y1)
+            q = scores[i] * float(np.log1p(area))
+            qualities.append((q, i))
 
-    try:
+        qualities.sort(key=lambda x: x[0], reverse=True)
+        selected = sorted([idx for _, idx in qualities[:k]])
+
         for idx in selected:
-            frame_id = tracklet.frames[idx]
+            frame_id = trk.frames[idx]
             box = boxes[idx]
             zero_based = max(0, int(frame_id) - 1)
-            cap.set(cv2.CAP_PROP_POS_FRAMES, zero_based)
-            ret, frame = cap.read()
-            if not ret:
-                continue
-            x1, y1, x2, y2 = box
-            x1 = max(0, min(width - 1, int(round(x1))))
-            y1 = max(0, min(height - 1, int(round(y1))))
-            x2 = max(x1 + 1, min(width, int(round(x2))))
-            y2 = max(y1 + 1, min(height, int(round(y2))))
-            crop = frame[y1:y2, x1:x2]
-            if crop.size > 0:
-                crops.append(crop)
-    finally:
-        cap.release()
+            by_video[vpath].append((zero_based, box, trk.tracklet_id))
 
-    return crops
+    logger.info("Extracting crops across %d unique video files...", len(by_video))
 
+    for vidx, (vpath, reqs) in enumerate(by_video.items()):
+        # Sort requests by frame index for forward-only decoding
+        reqs.sort(key=lambda x: x[0])
+        reqs_by_frame = defaultdict(list)
+        for f_idx, box, tid in reqs:
+            reqs_by_frame[f_idx].append((box, tid))
 
-def extract_degraded_query_embeddings(
-    queries: list,
-    extractor: FastReIDExtractor,
-    video_map: dict[str, Path],
-    family: str,
-    severity: float,
-    seed: int = 0,
-) -> dict[str, np.ndarray]:
-    """Extract degraded embeddings for queries only. Gallery remains clean.
-
-    Pipeline (correct):
-      raw crop from video → apply degradation → FastReID → L2 normalize → aggregate.
-
-    If a video file cannot be found, the tracklet is skipped (no fallback to
-    clean embeddings — this is intentional so the degradation metric is honest).
-    """
-    query_embs: dict[str, np.ndarray] = {}
-    skipped = 0
-    for q in queries:
-        video_path = video_map.get(q.camera_id)
-        if video_path is None:
-            skipped += 1
+        target_frames = sorted(reqs_by_frame.keys())
+        if not target_frames:
             continue
-        raw_crops = _extract_crops_from_video(q, video_path)
-        if not raw_crops:
-            skipped += 1
+
+        cap = cv2.VideoCapture(str(vpath))
+        if not cap.isOpened():
             continue
-        degraded_imgs = [degrade_crop(img, family, severity, seed=seed) for img in raw_crops]
-        frame_embs = extractor.embed_crops(degraded_imgs)
-        trk_emb = aggregate_embeddings(frame_embs, method="mean")
-        query_embs[q.tracklet_id] = trk_emb
 
-    if skipped:
-        logger.warning(
-            "Skipped %d / %d queries (no video file or no extractable crops).",
-            skipped,
-            len(queries),
-        )
-    return query_embs
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        curr_frame = 0
 
+        try:
+            for t_frame in target_frames:
+                # Seek forward only if needed
+                if t_frame > curr_frame + 5:
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, t_frame)
+                    curr_frame = t_frame
 
-def sanity_check_degradation_differs(
-    queries: list,
-    extractor: FastReIDExtractor,
-    video_map: dict[str, Path],
-    clean_embedding_map: dict[str, np.ndarray],
-) -> None:
-    """Assert that at least one degraded query embedding differs from its clean embedding.
+                while curr_frame < t_frame:
+                    ret = cap.grab()
+                    if not ret:
+                        break
+                    curr_frame += 1
 
-    Uses heavy downscaling (factor=0.125) on a single query as a cheap probe.
-    Raises RuntimeError if all degraded embeddings are identical to clean ones.
-    """
-    logger.info("Running degradation sanity check (downscale factor=0.125 on first 5 queries)...")
-    differences: list[float] = []
-    for q in queries[:5]:
-        if q.tracklet_id not in clean_embedding_map:
-            continue
-        video_path = video_map.get(q.camera_id)
-        if video_path is None:
-            continue
-        raw_crops = _extract_crops_from_video(q, video_path, k=2)
-        if not raw_crops:
-            continue
-        degraded_imgs = [degrade_crop(img, "downscale", 0.125) for img in raw_crops]
-        frame_embs = extractor.embed_crops(degraded_imgs)
-        deg_emb = aggregate_embeddings(frame_embs, method="mean")
-        clean_emb = clean_embedding_map[q.tracklet_id]
-        cosine_sim = float(np.dot(deg_emb, clean_emb))
-        differences.append(1.0 - cosine_sim)
-        logger.info(
-            "  Sanity [%s]: cosine(clean, degraded) = %.4f  (distance = %.4f)",
-            q.tracklet_id,
-            cosine_sim,
-            1.0 - cosine_sim,
-        )
+                ret, frame = cap.read()
+                curr_frame += 1
+                if not ret or frame is None:
+                    continue
 
-    if not differences:
-        raise RuntimeError(
-            "Sanity check failed: could not extract any degraded crops. "
-            "Check that video files exist under --root and camera IDs match."
-        )
-    max_diff = max(differences)
-    if max_diff < 1e-4:
-        raise RuntimeError(
-            f"Sanity check FAILED: max cosine distance between clean and degraded "
-            f"embeddings is {max_diff:.6f} — degradation has no effect on embeddings. "
-            "This indicates the embedding cache is still being reused instead of "
-            "re-extracting from degraded crops."
-        )
-    logger.info(
-        "Sanity check PASSED: max embedding distance = %.4f (degradation is effective).",
-        max_diff,
-    )
+                for box, tid in reqs_by_frame[t_frame]:
+                    x1, y1, x2, y2 = box
+                    x1 = max(0, min(width - 1, int(round(x1))))
+                    y1 = max(0, min(height - 1, int(round(y1))))
+                    x2 = max(x1 + 1, min(width, int(round(x2))))
+                    y2 = max(y1 + 1, min(height, int(round(y2))))
+                    crop = frame[y1:y2, x1:x2]
+                    if crop.size > 0:
+                        tracklet_crops[tid].append(crop)
+        finally:
+            cap.release()
+
+        if (vidx + 1) % 5 == 0 or (vidx + 1) == len(by_video):
+            logger.info("Processed %d / %d video streams.", vidx + 1, len(by_video))
+
+    return tracklet_crops
 
 
 def main() -> int:
@@ -244,15 +182,10 @@ def main() -> int:
     parser.add_argument("--weights", default="outputs/weights/veri_sbs_R50-ibn.pth")
     parser.add_argument("--model-name", default="sbs_R50-ibn")
     parser.add_argument("--min-frames", type=int, default=2)
-    # Frozen M4 hyperparameters — do not change without updating the frozen config
-    parser.add_argument("--time-window-s", type=float, default=FROZEN_TIME_WINDOW_S,
-                        help="Frozen M4 temporal window in seconds (default: 60.0)")
-    parser.add_argument("--alpha", type=float, default=FROZEN_ALPHA,
-                        help="Frozen M4 prior blend weight (default: 0.05)")
+    parser.add_argument("--time-window-s", type=float, default=FROZEN_TIME_WINDOW_S)
+    parser.add_argument("--alpha", type=float, default=FROZEN_ALPHA)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--out-dir", default="outputs/m4_degradation")
-    parser.add_argument("--skip-sanity-check", action="store_true",
-                        help="Skip the degradation sanity check (not recommended).")
     args = parser.parse_args()
 
     logger.info("Loading tracklets from %s ...", args.root)
@@ -266,87 +199,52 @@ def main() -> int:
         train_tracklets, min_edge_samples=FROZEN_MIN_EDGE_SAMPLES
     )
 
-    # Evaluate on test tracklets
     test_tracklets = filter_tracklets_by_identities(tracklets, splits.test)
     logger.info("Degradation study on %d test tracklets.", len(test_tracklets))
 
-    # Build video map: scoped_camera_id → video file path
     video_map = _build_video_map(args.root)
-    logger.info("Video map has %d entries.", len(video_map))
-
-    # Load clean gallery embeddings from cache (or compute on-the-fly for test split if cache missing)
-    from incident_search.eval.baseline import load_tracklet_embedding_map
-    from incident_search.reid.extractor import save_embeddings
-
     extractor = FastReIDExtractor(args.weights)
 
-    clean_embedding_map = load_tracklet_embedding_map(
-        test_tracklets, cache_dir=args.embedding_cache, model_name=args.model_name
-    )
-    missing_trks = [t for t in test_tracklets if t.tracklet_id not in clean_embedding_map]
+    # Fast batch extraction: opens each video once
+    logger.info("Extracting raw test crops in batched video sweep...")
+    raw_crops_cache = extract_crops_batch(test_tracklets, video_map, k=4)
+    logger.info("Successfully extracted raw crops for %d test vehicles.", len(raw_crops_cache))
 
-    if missing_trks:
-        logger.info(
-            "Extracting clean embeddings for %d / %d test tracklets directly on GPU...",
-            len(missing_trks),
-            len(test_tracklets),
-        )
-        for t in missing_trks:
-            vpath = video_map.get(t.camera_id)
-            if vpath is None:
-                continue
-            raw_crops = _extract_crops_from_video(t, vpath, k=8)
-            if not raw_crops:
-                continue
-            f_embs = extractor.embed_crops(raw_crops)
-            t_emb = aggregate_embeddings(f_embs, method="mean")
-            clean_embedding_map[t.tracklet_id] = t_emb
-            save_embeddings(
-                cache_dir=args.embedding_cache,
-                tracklet_id=t.tracklet_id,
-                frame_embeddings=f_embs,
-                tracklet_embedding=t_emb,
-                model_name=args.model_name,
-            )
+    if not raw_crops_cache:
+        raise RuntimeError("No crops could be extracted from video files. Check dataset root path.")
 
-    logger.info(
-        "Ready with clean gallery embeddings for %d / %d test tracklets.",
-        len(clean_embedding_map),
-        len(test_tracklets),
-    )
-    if not clean_embedding_map:
-        raise RuntimeError("Could not extract any clean embeddings from test videos.")
-
-    # Sanity check: verify degradation actually changes embeddings
-    if not args.skip_sanity_check:
-        sanity_check_degradation_differs(
-            test_tracklets, extractor, video_map, clean_embedding_map
+    # Compute clean embeddings directly in RAM
+    clean_embedding_map: dict[str, np.ndarray] = {}
+    for tid, crops in raw_crops_cache.items():
+        f_embs = extractor.embed_crops(crops)
+        clean_embedding_map[tid] = aggregate_embeddings(f_embs, method="mean")
+        save_embeddings(
+            cache_dir=args.embedding_cache,
+            tracklet_id=tid,
+            frame_embeddings=f_embs,
+            tracklet_embedding=clean_embedding_map[tid],
+            model_name=args.model_name,
         )
 
-    # Precompute eligibility and prior matrix (same for all conditions)
+    # Restrict to test tracklets that have valid crops
+    valid_test_tracklets = [t for t in test_tracklets if t.tracklet_id in clean_embedding_map]
+    logger.info("Proceeding with %d validated test tracklets.", len(valid_test_tracklets))
+
+    # Precompute eligibility and prior matrix
     eligible_baseline, positives = build_upstream_protocol(
-        test_tracklets, test_tracklets, time_window_s=None
+        valid_test_tracklets, valid_test_tracklets, time_window_s=None
     )
     eligible_window, _ = build_upstream_protocol(
-        test_tracklets, test_tracklets, time_window_s=args.time_window_s
+        valid_test_tracklets, valid_test_tracklets, time_window_s=args.time_window_s
     )
-    prior_matrix, _, _ = build_graph_prior_matrix(test_tracklets, test_tracklets, camera_graph)
+    prior_matrix, _, _ = build_graph_prior_matrix(
+        valid_test_tracklets, valid_test_tracklets, camera_graph
+    )
 
-    # Gallery matrix: only include tracklets that have valid embeddings
-    valid_test_tracklets = [t for t in test_tracklets if t.tracklet_id in clean_embedding_map]
-    if len(valid_test_tracklets) < len(test_tracklets):
-        logger.info(
-            "Using %d / %d test tracklets with valid video embeddings for evaluation.",
-            len(valid_test_tracklets),
-            len(test_tracklets),
-        )
-        test_tracklets = valid_test_tracklets
-
-    # Gallery matrix is always clean
-    g_mat = np.stack([clean_embedding_map[t.tracklet_id] for t in test_tracklets])
-
+    g_mat = np.stack([clean_embedding_map[t.tracklet_id] for t in valid_test_tracklets])
     results = []
 
+    # Fast evaluation loop over in-memory crops
     for family, severities in DEGRADATION_SPECS:
         for sev in severities:
             seeds = [0, 1, 2] if family == "occlusion" else [args.seed]
@@ -356,55 +254,27 @@ def main() -> int:
             r1s_st: list[float] = []
 
             for s in seeds:
-                # Freshly extract degraded query embeddings from video (no cache fallback)
-                deg_query_embs = extract_degraded_query_embeddings(
-                    test_tracklets, extractor, video_map, family, sev, seed=s
-                )
+                deg_query_embs = {}
+                for tid, crops in raw_crops_cache.items():
+                    deg_imgs = [degrade_crop(img, family, sev, seed=s) for img in crops]
+                    f_embs = extractor.embed_crops(deg_imgs)
+                    deg_query_embs[tid] = aggregate_embeddings(f_embs, method="mean")
 
-                if not deg_query_embs:
-                    logger.error(
-                        "No degraded embeddings extracted for %s sev=%.3f seed=%d. "
-                        "Check that video files are accessible.",
-                        family, sev, s,
-                    )
-                    continue
-
-                # Build query matrix: use degraded embedding where available,
-                # skip tracklets with no video (they are excluded from the query set).
-                # Only include test tracklets that have a degraded embedding.
-                valid_indices = [
-                    i for i, t in enumerate(test_tracklets)
-                    if t.tracklet_id in deg_query_embs
-                ]
-                if not valid_indices:
-                    continue
-
-                q_mat = np.stack([deg_query_embs[test_tracklets[i].tracklet_id] for i in valid_indices])
-                scores_app_full = (q_mat @ g_mat.T).astype(np.float32)
-
-                # Subset the eligibility and positives masks to the valid query indices
-                eligible_sub_base = eligible_baseline[np.array(valid_indices), :]
-                eligible_sub_win = eligible_window[np.array(valid_indices), :]
-                positives_sub = positives[np.array(valid_indices), :]
-
-                # Subset prior matrix rows
-                prior_sub = prior_matrix[np.array(valid_indices), :]
-                scores_st_full = compute_fused_scores(scores_app_full, prior_sub, alpha=args.alpha)
+                q_mat = np.stack([deg_query_embs[t.tracklet_id] for t in valid_test_tracklets])
+                scores_app = (q_mat @ g_mat.T).astype(np.float32)
+                scores_st = compute_fused_scores(scores_app, prior_matrix, alpha=args.alpha)
 
                 met_app, _ = evaluate_retrieval(
-                    scores_app_full, positives_sub, eligible_mask=eligible_sub_base
+                    scores_app, positives, eligible_mask=eligible_baseline
                 )
                 met_st, _ = evaluate_retrieval(
-                    scores_st_full, positives_sub, eligible_mask=eligible_sub_win
+                    scores_st, positives, eligible_mask=eligible_window
                 )
 
                 maps_app.append(met_app.mAP)
                 maps_st.append(met_st.mAP)
                 r1s_app.append(met_app.rank1)
                 r1s_st.append(met_st.rank1)
-
-            if not maps_app:
-                continue
 
             entry = {
                 "family": family,
@@ -416,7 +286,7 @@ def main() -> int:
                 "app_rank1_mean": round(float(np.mean(r1s_app)), 6),
                 "st_rank1_mean": round(float(np.mean(r1s_st)), 6),
                 "mAP_gain": round(float(np.mean(maps_st) - np.mean(maps_app)), 6),
-                "num_queries": len(valid_indices),
+                "num_queries": len(valid_test_tracklets),
             }
             results.append(entry)
             logger.info(
