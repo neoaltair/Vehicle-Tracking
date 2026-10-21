@@ -150,7 +150,22 @@ tab1, tab2, tab3 = st.tabs([
     "3️⃣ Cross-Camera Route & Journey Retrieval",
 ])
 
-sample_path = Path("data/raw/samples/demo_traffic.mp4")
+def ensure_sample_video() -> Path:
+    sample_dir = Path("data/raw/samples")
+    sample_dir.mkdir(parents=True, exist_ok=True)
+    sample_file = sample_dir / "demo_traffic.mp4"
+    if not sample_file.exists() or sample_file.stat().st_size == 0:
+        url = "https://upload.wikimedia.org/wikipedia/commons/6/68/Avtocesta.webm"
+        import urllib.request
+        try:
+            logger.info("Auto-downloading demo traffic video from %s...", url)
+            urllib.request.urlretrieve(url, str(sample_file))
+        except Exception as e:
+            logger.warning("Could not auto-download sample video: %s", e)
+    return sample_file
+
+
+sample_path = ensure_sample_video()
 
 # ==============================================================================
 # TAB 1: INGEST FEEDS

@@ -38,6 +38,9 @@ htmlcov/
 
 # Data and Outputs (per research specification)
 data/
+!data/raw/
+!data/raw/samples/
+!data/raw/samples/demo_traffic.mp4
 outputs/
 *.npy
 *.npz
