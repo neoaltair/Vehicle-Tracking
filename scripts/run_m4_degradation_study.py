@@ -274,25 +274,48 @@ def main() -> int:
     video_map = _build_video_map(args.root)
     logger.info("Video map has %d entries.", len(video_map))
 
-    # Load clean gallery embeddings from cache
+    # Load clean gallery embeddings from cache (or compute on-the-fly for test split if cache missing)
     from incident_search.eval.baseline import load_tracklet_embedding_map
+    from incident_search.reid.extractor import save_embeddings
+
+    extractor = FastReIDExtractor(args.weights)
+
     clean_embedding_map = load_tracklet_embedding_map(
         test_tracklets, cache_dir=args.embedding_cache, model_name=args.model_name
     )
+    missing_trks = [t for t in test_tracklets if t.tracklet_id not in clean_embedding_map]
+
+    if missing_trks:
+        logger.info(
+            "Extracting clean embeddings for %d / %d test tracklets directly on GPU...",
+            len(missing_trks),
+            len(test_tracklets),
+        )
+        for t in missing_trks:
+            vpath = video_map.get(t.camera_id)
+            if vpath is None:
+                continue
+            raw_crops = _extract_crops_from_video(t, vpath, k=8)
+            if not raw_crops:
+                continue
+            f_embs = extractor.embed_crops(raw_crops)
+            t_emb = aggregate_embeddings(f_embs, method="mean")
+            clean_embedding_map[t.tracklet_id] = t_emb
+            save_embeddings(
+                cache_dir=args.embedding_cache,
+                tracklet_id=t.tracklet_id,
+                frame_embeddings=f_embs,
+                tracklet_embedding=t_emb,
+                model_name=args.model_name,
+            )
+
     logger.info(
-        "Loaded clean embeddings for %d / %d test tracklets.",
+        "Ready with clean gallery embeddings for %d / %d test tracklets.",
         len(clean_embedding_map),
         len(test_tracklets),
     )
     if not clean_embedding_map:
-        raise FileNotFoundError(
-            f"No clean embeddings found in '{args.embedding_cache}/{args.model_name}'. "
-            "The gallery requires the existing clean embedding cache. "
-            "If running in a fresh Colab instance, please restore or copy the 'outputs/cache/embeddings' "
-            "folder from your previous session or Google Drive."
-        )
-
-    extractor = FastReIDExtractor(args.weights)
+        raise RuntimeError("Could not extract any clean embeddings from test videos.")
 
     # Sanity check: verify degradation actually changes embeddings
     if not args.skip_sanity_check:
@@ -308,6 +331,16 @@ def main() -> int:
         test_tracklets, test_tracklets, time_window_s=args.time_window_s
     )
     prior_matrix, _, _ = build_graph_prior_matrix(test_tracklets, test_tracklets, camera_graph)
+
+    # Gallery matrix: only include tracklets that have valid embeddings
+    valid_test_tracklets = [t for t in test_tracklets if t.tracklet_id in clean_embedding_map]
+    if len(valid_test_tracklets) < len(test_tracklets):
+        logger.info(
+            "Using %d / %d test tracklets with valid video embeddings for evaluation.",
+            len(valid_test_tracklets),
+            len(test_tracklets),
+        )
+        test_tracklets = valid_test_tracklets
 
     # Gallery matrix is always clean
     g_mat = np.stack([clean_embedding_map[t.tracklet_id] for t in test_tracklets])
