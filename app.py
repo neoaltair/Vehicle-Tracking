@@ -155,6 +155,87 @@ def ensure_cityflow_adjacent_pair() -> tuple[Path, Path]:
     return c3_path, c4_path
 
 
+# CityFlow full dataset scenario metadata
+CITYFLOW_SCENARIOS = {
+    "S01": {
+        "split": "train",
+        "cameras": ["c001", "c002", "c003", "c004", "c005"],
+        "location": "Bellevue NE 148th Intersection Corridor",
+        "offsets": {"c001": 0.0, "c002": -8.0, "c003": -15.0, "c004": -25.0, "c005": -35.0},
+        "labels": {
+            "c001": "NE 148th Main Intersection (Incident Scene)",
+            "c002": "NE 148th East Approach (100m)",
+            "c003": "NE 148th West Approach (200m)",
+            "c004": "Adjacent Road North (300m)",
+            "c005": "Adjacent Road South (400m)",
+        },
+    },
+    "S03": {
+        "split": "train",
+        "cameras": ["c010", "c011", "c012", "c013", "c014", "c015"],
+        "location": "Multi-Lane Highway Interchange",
+        "offsets": {"c010": 0.0, "c011": -10.0, "c012": -18.0, "c013": -26.0, "c014": -34.0, "c015": -42.0},
+        "labels": {
+            "c010": "Interchange Main Ramp (Incident)",
+            "c011": "Highway Westbound Entry (150m)",
+            "c012": "Highway Eastbound Exit (250m)",
+            "c013": "Service Road North (350m)",
+            "c014": "Service Road South (450m)",
+            "c015": "Overpass Camera (550m)",
+        },
+    },
+    "S02": {
+        "split": "validation",
+        "cameras": ["c006", "c007", "c008", "c009"],
+        "location": "Urban Arterial Road Network",
+        "offsets": {"c006": 0.0, "c007": -12.0, "c008": -22.0, "c009": -32.0},
+        "labels": {
+            "c006": "Arterial Junction (Incident)",
+            "c007": "Upstream Road A (200m)",
+            "c008": "Upstream Road B (350m)",
+            "c009": "Feeder Road (500m)",
+        },
+    },
+    "S06": {
+        "split": "test",
+        "cameras": ["c041", "c042", "c043", "c044", "c045", "c046"],
+        "location": "Test Intersection Network (6 cameras)",
+        "offsets": {"c041": 0.0, "c042": -10.0, "c043": -20.0, "c044": -30.0, "c045": -38.0, "c046": -45.0},
+        "labels": {
+            "c041": "Intersection Alpha (Incident)",
+            "c042": "Approach Road North (180m)",
+            "c043": "Approach Road East (300m)",
+            "c044": "Approach Road South (420m)",
+            "c045": "Ring Road West (520m)",
+            "c046": "Ring Road East (600m)",
+        },
+    },
+}
+
+CITYFLOW_FULL_DIR = Path("data/raw/aic21mtmct_vehicle")
+
+
+def scan_cityflow_scenarios() -> dict[str, dict]:
+    """Scan extracted CityFlow dataset and return available scenarios."""
+    available = {}
+    for scenario_name, meta in CITYFLOW_SCENARIOS.items():
+        scenario_dir = CITYFLOW_FULL_DIR / meta["split"] / scenario_name
+        if not scenario_dir.exists():
+            continue
+        cams_found = []
+        for cam_id in meta["cameras"]:
+            video = scenario_dir / cam_id / "vdo.avi"
+            if video.exists():
+                cams_found.append((cam_id, video))
+        if len(cams_found) >= 2:
+            available[scenario_name] = {
+                **meta,
+                "cameras_found": cams_found,
+                "dir": scenario_dir,
+            }
+    return available
+
+
 @st.cache_resource
 def get_pipeline():
     weights = Path("outputs/weights/veri_sbs_R50-ibn.pth")
@@ -202,7 +283,8 @@ with st.sidebar:
     feed_mode = st.radio(
         "Surveillance Feed Mode",
         [
-            "CityFlow Adjacent Road CCTV Feeds (Coherent Corridor Stream)",
+            "CityFlow Full Dataset (Multi-Scenario, 46 Cameras)",
+            "CityFlow Quick Demo (2-Camera Corridor Pair)",
             "Local / Drive CityFlow Dataset Folder",
             "Upload Custom Camera Videos",
         ],
@@ -271,7 +353,69 @@ with tab1:
     main_cam_id = "c003_IncidentScene"
     bg_cams_to_run = []
 
-    if feed_mode == "CityFlow Adjacent Road CCTV Feeds (Coherent Corridor Stream)":
+    if feed_mode == "CityFlow Full Dataset (Multi-Scenario, 46 Cameras)":
+        avail_scenarios = scan_cityflow_scenarios()
+        if not avail_scenarios:
+            st.warning(
+                "⚠️ Full CityFlow dataset (3.84 GB) is not yet downloaded or unpacked at `data/raw/aic21mtmct_vehicle`.\n\n"
+                "You can run `python scripts/download_cityflow.py` in your terminal or click the Quick Demo mode in the sidebar."
+            )
+            if st.button("📥 Download & Extract Full CityFlow Dataset (3.84 GB)", key="btn_dl_full_cityflow"):
+                with st.spinner("Downloading and extracting CityFlow dataset from official mirror (this may take a few minutes)..."):
+                    try:
+                        from scripts.download_cityflow import download_full_cityflow
+                        download_full_cityflow()
+                        st.success("Download and extraction complete! Reloading scenarios...")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error downloading CityFlow: {e}")
+        else:
+            chosen_scenario = st.selectbox(
+                "Select Surveillance Scenario Network:",
+                list(avail_scenarios.keys()),
+                format_func=lambda s: f"Scenario {s}: {avail_scenarios[s]['location']} ({len(avail_scenarios[s]['cameras_found'])} Cameras)",
+            )
+            sc_meta = avail_scenarios[chosen_scenario]
+            cams_found = sc_meta["cameras_found"]
+            cam_ids = [c[0] for c in cams_found]
+
+            with col_main_setup:
+                st.markdown(
+                    "#### 🚨 Primary Incident Feed <span class='status-badge badge-incident'>INCIDENT SCENE</span>",
+                    unsafe_allow_html=True,
+                )
+                sel_main_id = st.selectbox("Select Incident Camera:", cam_ids, index=0, key="sel_cityflow_main")
+                main_cam_id = sel_main_id
+                main_video_path = next(v for c, v in cams_found if c == sel_main_id)
+                label_main = sc_meta.get("labels", {}).get(sel_main_id, f"Camera {sel_main_id}")
+                st.info(
+                    f"**Camera:** `{main_cam_id}`\n\n"
+                    f"**Location:** {label_main}\n\n"
+                    f"**Scenario:** {sc_meta['location']} ({chosen_scenario})"
+                )
+
+            with col_bg_setup:
+                st.markdown(
+                    "#### 📹 Background CCTV Network <span class='status-badge badge-cctv'>NEIGHBOURING ROADS</span>",
+                    unsafe_allow_html=True,
+                )
+                bg_avail = [c for c in cam_ids if c != sel_main_id]
+                sel_bgs = st.multiselect(
+                    "Select Neighbouring CCTV Cameras to Index:",
+                    bg_avail,
+                    default=bg_avail,
+                    key="sel_cityflow_bgs",
+                )
+                for b_id in sel_bgs:
+                    b_path = next(v for c, v in cams_found if c == b_id)
+                    b_offset = sc_meta.get("offsets", {}).get(b_id, -20.0)
+                    b_label = sc_meta.get("labels", {}).get(b_id, f"Camera {b_id}")
+                    bg_cams_to_run.append((b_id, b_path, b_offset, b_label))
+
+                if sel_bgs:
+                    st.caption(f"Selected {len(sel_bgs)} neighbouring cameras along the network corridor.")
+
+    elif feed_mode == "CityFlow Quick Demo (2-Camera Corridor Pair)":
         c3_file, c4_file = ensure_cityflow_adjacent_pair()
         main_video_path = c3_file
         main_cam_id = "c003_Intersection"
