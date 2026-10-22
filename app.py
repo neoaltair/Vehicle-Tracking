@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
+import tarfile
 import urllib.request
 from pathlib import Path
 
@@ -132,49 +133,26 @@ def format_time_delta(delta_s: float) -> str:
     return f"{sign}{s:.1f}s"
 
 
-# Sample Video Feeds (Curated High-Definition Multi-Camera Suite)
-SAMPLE_FEEDS = {
-    "cam1_main": {
-        "id": "CAM_01_DOWNTOWN_MAIN",
-        "name": "Downtown Crosswalk (Main Incident Scene)",
-        "file": "crosswalk_red_car.mp4",
-        "url": "https://github.com/aparsoft/yolo-streamlit-detection-tracking/releases/download/sample-videos/crosswalk_red_car.mp4",
-        "offset": 0.0,
-        "desc": "Primary intersection feed. Shows crossing pedestrians, traffic flow, and red suspect sedan.",
-    },
-    "cam2_west": {
-        "id": "CAM_02_WEST_JUNCTION",
-        "name": "West Avenue Junction (Upstream CCTV)",
-        "file": "busy_intersection.mp4",
-        "url": "https://github.com/aparsoft/yolo-streamlit-detection-tracking/releases/download/sample-videos/busy_intersection.mp4",
-        "offset": -180.0,
-        "desc": "Arterial junction 450m west of incident. Monitors incoming and turning vehicles.",
-    },
-    "cam3_bridge": {
-        "id": "CAM_03_HIGHWAY_BRIDGE",
-        "name": "Highway Bridge Corridor (Perimeter CCTV)",
-        "file": "highway_bridge_traffic.mp4",
-        "url": "https://github.com/aparsoft/yolo-streamlit-detection-tracking/releases/download/sample-videos/highway_bridge_traffic.mp4",
-        "offset": -360.0,
-        "desc": "Perimeter elevated camera 1.2km upstream. Observes vehicles entering from highway.",
-    },
-}
-
-
-def ensure_sample_video(key: str) -> Path:
-    info = SAMPLE_FEEDS[key]
-    dest_dir = Path("data/raw/samples")
+def ensure_cityflow_adjacent_pair() -> tuple[Path, Path]:
+    """Download and unpack official CityFlow adjacent corridor CCTV pair (c003 & c004)."""
+    dest_dir = Path("data/raw/mtmct-demo")
     dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_file = dest_dir / info["file"]
-    if not dest_file.exists() or dest_file.stat().st_size == 0:
-        logger.info("Downloading %s from %s...", info["file"], info["url"])
+    c3_path = dest_dir / "c003.mp4"
+    c4_path = dest_dir / "c004.mp4"
+
+    if not c3_path.exists() or not c4_path.exists() or c3_path.stat().st_size == 0:
+        tar_dest = Path("data/raw/mtmct-demo.tar")
+        url = "https://paddledet.bj.bcebos.com/data/mot/demo/mtmct-demo.tar"
+        logger.info("Downloading official CityFlow adjacent CCTV pair from %s...", url)
         try:
-            req = urllib.request.Request(info["url"], headers={"User-Agent": "Sentinel-Console"})
+            req = urllib.request.Request(url, headers={"User-Agent": "Sentinel-Console"})
             data = urllib.request.urlopen(req, timeout=60).read()
-            dest_file.write_bytes(data)
+            tar_dest.write_bytes(data)
+            with tarfile.open(str(tar_dest)) as tar:
+                tar.extractall("data/raw/")
         except Exception as e:
-            logger.warning("Download failed for %s: %s", info["file"], e)
-    return dest_file
+            logger.warning("Could not auto-download CityFlow pair: %s", e)
+    return c3_path, c4_path
 
 
 @st.cache_resource
@@ -223,7 +201,11 @@ with st.sidebar:
     st.header("⚙️ Surveillance Control")
     feed_mode = st.radio(
         "Surveillance Feed Mode",
-        ["High-Definition Multi-Camera Suite (Default)", "Upload Custom Camera Videos"],
+        [
+            "CityFlow Adjacent Road CCTV Feeds (Coherent Corridor Stream)",
+            "Local / Drive CityFlow Dataset Folder",
+            "Upload Custom Camera Videos",
+        ],
         index=0,
     )
 
@@ -231,17 +213,17 @@ with st.sidebar:
     st.subheader("⏱️ Spatio-Temporal Parameters")
     lookback_window = st.slider(
         "Max Upstream Search Window (s)",
-        min_value=60,
+        min_value=30,
         max_value=900,
-        value=600,
-        step=30,
+        value=300,
+        step=15,
         help="Search window looking backward in time prior to incident.",
     )
     prior_weight = st.slider(
         "Spatio-Temporal Prior Weight (α)",
         min_value=0.0,
         max_value=0.30,
-        value=0.08,
+        value=0.05,
         step=0.01,
         help="Weight for camera transition graph & travel-time prior.",
     )
@@ -257,9 +239,9 @@ with st.sidebar:
         "Max Frames to Ingest per Camera",
         min_value=30,
         max_value=1200,
-        value=200,
-        step=50,
-        help="Ingest 150-300 frames per feed for fast interactive tracking.",
+        value=120,
+        step=30,
+        help="Use 80-150 frames for fast interactive search.",
     )
 
     st.markdown("---")
@@ -279,35 +261,98 @@ tab1, tab2, tab3 = st.tabs([
 with tab1:
     st.markdown("### Step 1: Multi-Camera Feed Ingestion & Tracking Overlays")
     st.write(
-        "Process surveillance feeds to generate YOLO tracking bounding boxes, unique vehicle IDs, "
-        "and synchronized timecode overlays."
+        "Process surveillance feeds from neighbouring roads along the traffic network. "
+        "Generates YOLO tracking bounding boxes, unique vehicle IDs, and synchronized timecode overlays."
     )
 
     col_main_setup, col_bg_setup = st.columns([1, 1])
 
-    # Main Camera Setup
-    with col_main_setup:
-        st.markdown(
-            "#### 🚨 Primary Incident Feed <span class='status-badge badge-incident'>INCIDENT SCENE</span>",
-            unsafe_allow_html=True,
-        )
+    main_video_path = None
+    main_cam_id = "c003_IncidentScene"
+    bg_cams_to_run = []
 
-        main_cam_id = SAMPLE_FEEDS["cam1_main"]["id"]
-        main_video_path = None
+    if feed_mode == "CityFlow Adjacent Road CCTV Feeds (Coherent Corridor Stream)":
+        c3_file, c4_file = ensure_cityflow_adjacent_pair()
+        main_video_path = c3_file
+        main_cam_id = "c003_Intersection"
+        bg_cams_to_run = [
+            ("c004_UpstreamRoad", c4_file, -15.0, "Bellevue NE 148th Adjacent Road (180m Upstream)"),
+        ]
 
-        if feed_mode == "High-Definition Multi-Camera Suite (Default)":
-            main_video_path = ensure_sample_video("cam1_main")
-            st.info(f"**Camera:** `{main_cam_id}`\n\n**Location:** {SAMPLE_FEEDS['cam1_main']['name']}")
-            st.caption(f"File: `{main_video_path.name}` ({SAMPLE_FEEDS['cam1_main']['desc']})")
-        else:
+        with col_main_setup:
+            st.markdown(
+                "#### 🚨 Primary Incident Feed <span class='status-badge badge-incident'>INCIDENT SCENE</span>",
+                unsafe_allow_html=True,
+            )
+            st.info(
+                f"**Camera:** `{main_cam_id}`\n\n"
+                "**Location:** Bellevue NE 148th Intersection (Incident Location)\n\n"
+                "**Footage:** Coherent CityFlow Corridor Stream (`c003.mp4`)"
+            )
+
+        with col_bg_setup:
+            st.markdown(
+                "#### 📹 Background CCTV Network <span class='status-badge badge-cctv'>NEIGHBOURING ROAD</span>",
+                unsafe_allow_html=True,
+            )
+            st.info(
+                "**Camera:** `c004_UpstreamRoad`\n\n"
+                "**Location:** Bellevue NE 148th Adjacent Road (180m Upstream)\n\n"
+                "**Synchronization Offset:** `-15.0s` (Vehicles drive from c004 into c003)"
+            )
+
+    elif feed_mode == "Local / Drive CityFlow Dataset Folder":
+        with col_main_setup:
+            st.markdown("#### 🚨 CityFlow Dataset Directory", unsafe_allow_html=True)
+            ds_dir = st.text_input("CityFlow Scenario Directory Path", value="data/raw/cityflowv2/train/S01")
+            p_dir = Path(ds_dir)
+            if p_dir.exists():
+                c_dirs = sorted([d.name for d in p_dir.iterdir() if d.is_dir() and (d / "vdo.avi").exists()])
+                if len(c_dirs) >= 2:
+                    sel_main = st.selectbox("Select Incident Camera:", c_dirs, index=0)
+                    main_cam_id = sel_main
+                    main_video_path = p_dir / sel_main / "vdo.avi"
+
+                    with col_bg_setup:
+                        st.markdown("#### 📹 Surrounding Cameras", unsafe_allow_html=True)
+                        bg_choices = [c for c in c_dirs if c != sel_main]
+                        sel_bgs = st.multiselect("Select Background CCTV Cameras:", bg_choices, default=bg_choices[:2])
+                        for idx, b_name in enumerate(sel_bgs):
+                            bg_cams_to_run.append((b_name, p_dir / b_name / "vdo.avi", -(idx + 1) * 20.0, f"Camera {b_name}"))
+                else:
+                    st.warning(f"Found fewer than 2 camera folders with vdo.avi in {ds_dir}")
+            else:
+                st.info("Enter path to CityFlow scenario folder containing camera directories (e.g. c001, c002).")
+
+    else:  # Custom Uploads
+        with col_main_setup:
+            st.markdown("#### 🚨 Upload Main Incident Video", unsafe_allow_html=True)
             main_cam_id = st.text_input("Main Camera ID", value="CAM_01_INCIDENT")
-            up_main = st.file_uploader("Upload Main Incident Video (MP4/AVI)", type=["mp4", "avi", "mov"], key="up_main")
+            up_main = st.file_uploader("Upload Main Video (MP4/AVI)", type=["mp4", "avi", "mov"], key="up_main")
             if up_main:
                 t_main = Path("outputs/uploads/main_incident.mp4")
                 t_main.parent.mkdir(parents=True, exist_ok=True)
                 t_main.write_bytes(up_main.read())
                 main_video_path = t_main
 
+        with col_bg_setup:
+            st.markdown("#### 📹 Upload Surrounding CCTV Feeds", unsafe_allow_html=True)
+            up_bgs = st.file_uploader(
+                "Upload Background CCTV Videos (Multiple)",
+                type=["mp4", "avi", "mov"],
+                accept_multiple_files=True,
+                key="up_bgs",
+            )
+            if up_bgs:
+                for idx, f in enumerate(up_bgs):
+                    t_bg = Path(f"outputs/uploads/cctv_cam_{idx + 1}.mp4")
+                    t_bg.parent.mkdir(parents=True, exist_ok=True)
+                    t_bg.write_bytes(f.read())
+                    bg_cams_to_run.append((f"CCTV_CAM_{idx + 1:02d}", t_bg, -(idx + 1) * 25.0, f"CCTV Node {idx + 1}"))
+
+    # Tracking Action Buttons
+    col_btn_m, col_btn_b = st.columns([1, 1])
+    with col_btn_m:
         if st.button("▶ Process & Track Main Incident Video", type="primary", key="btn_main_track"):
             if main_video_path and Path(main_video_path).exists():
                 with st.spinner(f"Running YOLO11 + ByteTrack on {main_cam_id}..."):
@@ -325,41 +370,7 @@ with tab1:
             else:
                 st.error("Main video file not found.")
 
-    # Background CCTV Setup
-    with col_bg_setup:
-        st.markdown(
-            "#### 📹 Background CCTV Network <span class='status-badge badge-cctv'>SURROUNDING NETWORK</span>",
-            unsafe_allow_html=True,
-        )
-
-        bg_cams_to_run = []
-        if feed_mode == "High-Definition Multi-Camera Suite (Default)":
-            cam2_path = ensure_sample_video("cam2_west")
-            cam3_path = ensure_sample_video("cam3_bridge")
-            bg_cams_to_run = [
-                (SAMPLE_FEEDS["cam2_west"]["id"], cam2_path, SAMPLE_FEEDS["cam2_west"]["offset"], SAMPLE_FEEDS["cam2_west"]["name"]),
-                (SAMPLE_FEEDS["cam3_bridge"]["id"], cam3_path, SAMPLE_FEEDS["cam3_bridge"]["offset"], SAMPLE_FEEDS["cam3_bridge"]["name"]),
-            ]
-            st.info(
-                "**Registered Background Cameras:**\n\n"
-                f"• `{SAMPLE_FEEDS['cam2_west']['id']}` — {SAMPLE_FEEDS['cam2_west']['name']} (Offset -180s)\n\n"
-                f"• `{SAMPLE_FEEDS['cam3_bridge']['id']}` — {SAMPLE_FEEDS['cam3_bridge']['name']} (Offset -360s)"
-            )
-        else:
-            up_bgs = st.file_uploader(
-                "Upload Background CCTV Videos (Multiple)",
-                type=["mp4", "avi", "mov"],
-                accept_multiple_files=True,
-                key="up_bgs",
-            )
-            if up_bgs:
-                for idx, f in enumerate(up_bgs):
-                    t_bg = Path(f"outputs/uploads/cctv_cam_{idx + 1}.mp4")
-                    t_bg.parent.mkdir(parents=True, exist_ok=True)
-                    t_bg.write_bytes(f.read())
-                    bg_cams_to_run.append((f"CCTV_CAM_{idx + 1:02d}", t_bg, -(idx + 1) * 120.0, f"CCTV Node {idx + 1}"))
-                st.caption(f"Loaded {len(bg_cams_to_run)} background CCTV files.")
-
+    with col_btn_b:
         if st.button("▶ Process & Index Background CCTV Feeds", type="secondary", key="btn_bg_track"):
             if not bg_cams_to_run:
                 st.error("No background CCTV videos available.")
