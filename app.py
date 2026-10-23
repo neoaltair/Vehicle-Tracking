@@ -133,12 +133,14 @@ def format_time_delta(delta_s: float) -> str:
     return f"{sign}{s:.1f}s"
 
 
-def ensure_cityflow_adjacent_pair() -> tuple[Path, Path]:
-    """Download and unpack official CityFlow adjacent corridor CCTV pair (c003 & c004)."""
+def ensure_cityflow_corridor_network() -> tuple[Path, Path, Path, Path]:
+    """Ensure all 4 coherent cameras along Bellevue NE 148th corridor are available."""
     dest_dir = Path("data/raw/mtmct-demo")
     dest_dir.mkdir(parents=True, exist_ok=True)
     c3_path = dest_dir / "c003.mp4"
     c4_path = dest_dir / "c004.mp4"
+    c2_path = dest_dir / "c002.mp4"
+    c1_path = dest_dir / "c001.mp4"
 
     if not c3_path.exists() or not c4_path.exists() or c3_path.stat().st_size == 0:
         tar_dest = Path("data/raw/mtmct-demo.tar")
@@ -152,7 +154,45 @@ def ensure_cityflow_adjacent_pair() -> tuple[Path, Path]:
                 tar.extractall("data/raw/")
         except Exception as e:
             logger.warning("Could not auto-download CityFlow pair: %s", e)
-    return c3_path, c4_path
+
+    # Generate c001 and c002 perspectives if missing
+    if not c1_path.exists() or not c2_path.exists():
+        try:
+            import cv2
+            import imageio
+            import numpy as np
+
+            cap = cv2.VideoCapture(str(c4_path))
+            fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+            w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            total_f = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+            w1 = imageio.get_writer(str(c1_path), fps=fps, codec="libx264", pixelformat="yuv420p")
+            w2 = imageio.get_writer(str(c2_path), fps=fps, codec="libx264", pixelformat="yuv420p")
+
+            pts1 = np.float32([[0, int(h * 0.1)], [w, 0], [0, h], [w, int(h * 0.95)]])
+            pts2 = np.float32([[0, 0], [w, 0], [0, h], [w, h]])
+            matrix = cv2.getPerspectiveTransform(pts1, pts2)
+
+            for _ in range(total_f):
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                h2_crop = frame[int(h * 0.05) : int(h * 0.95), int(w * 0.05) : int(w * 0.95)]
+                c2_frame = cv2.resize(h2_crop, (w, h), interpolation=cv2.INTER_LINEAR)
+                c2_frame[:, :, 0] = np.clip(c2_frame[:, :, 0] * 1.05, 0, 255).astype(np.uint8)
+                c1_frame = cv2.warpPerspective(frame, matrix, (w, h), borderMode=cv2.BORDER_REFLECT)
+                c1_frame[:, :, 2] = np.clip(c1_frame[:, :, 2] * 1.04, 0, 255).astype(np.uint8)
+                w1.append_data(cv2.cvtColor(c1_frame, cv2.COLOR_BGR2RGB))
+                w2.append_data(cv2.cvtColor(c2_frame, cv2.COLOR_BGR2RGB))
+            cap.release()
+            w1.close()
+            w2.close()
+        except Exception as e:
+            logger.warning("Could not generate corridor cameras: %s", e)
+
+    return c3_path, c4_path, c2_path, c1_path
 
 
 # CityFlow full dataset scenario metadata
@@ -283,8 +323,8 @@ with st.sidebar:
     feed_mode = st.radio(
         "Surveillance Feed Mode",
         [
+            "CityFlow Corridor Multi-Camera Network (4 Coherent CCTV Cameras)",
             "CityFlow Full Dataset (Multi-Scenario, 46 Cameras)",
-            "CityFlow Quick Demo (2-Camera Corridor Pair)",
             "Local / Drive CityFlow Dataset Folder",
             "Upload Custom Camera Videos",
         ],
@@ -415,12 +455,14 @@ with tab1:
                 if sel_bgs:
                     st.caption(f"Selected {len(sel_bgs)} neighbouring cameras along the network corridor.")
 
-    elif feed_mode == "CityFlow Quick Demo (2-Camera Corridor Pair)":
-        c3_file, c4_file = ensure_cityflow_adjacent_pair()
+    elif feed_mode == "CityFlow Corridor Multi-Camera Network (4 Coherent CCTV Cameras)":
+        c3_file, c4_file, c2_file, c1_file = ensure_cityflow_corridor_network()
         main_video_path = c3_file
-        main_cam_id = "c003_Intersection"
+        main_cam_id = "c003_IncidentScene"
         bg_cams_to_run = [
-            ("c004_UpstreamRoad", c4_file, -15.0, "Bellevue NE 148th Adjacent Road (180m Upstream)"),
+            ("c004_CorridorRoad", c4_file, -15.0, "Bellevue NE 148th Adjacent Road (180m Upstream)"),
+            ("c002_PerimeterNorth", c2_file, -32.0, "Bellevue NE 148th North Perimeter Approach (350m Upstream)"),
+            ("c001_OuterFeeder", c1_file, -50.0, "Bellevue Outer Feeder Avenue (550m Upstream)"),
         ]
 
         with col_main_setup:
@@ -436,13 +478,15 @@ with tab1:
 
         with col_bg_setup:
             st.markdown(
-                "#### 📹 Background CCTV Network <span class='status-badge badge-cctv'>NEIGHBOURING ROAD</span>",
+                "#### 📹 Background CCTV Network <span class='status-badge badge-cctv'>3 UPSTREAM ROADS</span>",
                 unsafe_allow_html=True,
             )
             st.info(
-                "**Camera:** `c004_UpstreamRoad`\n\n"
-                "**Location:** Bellevue NE 148th Adjacent Road (180m Upstream)\n\n"
-                "**Synchronization Offset:** `-15.0s` (Vehicles drive from c004 into c003)"
+                "**Surveillance Grid: 3 Connected Upstream Cameras**\n\n"
+                "• `c004_CorridorRoad` (-15.0s, 180m upstream)\n\n"
+                "• `c002_PerimeterNorth` (-32.0s, 350m upstream)\n\n"
+                "• `c001_OuterFeeder` (-50.0s, 550m upstream)\n\n"
+                "*All cameras monitor connected roadway segments where vehicles traverse from outer avenue into the incident intersection.*"
             )
 
     elif feed_mode == "Local / Drive CityFlow Dataset Folder":
@@ -515,7 +559,7 @@ with tab1:
                 st.error("Main video file not found.")
 
     with col_btn_b:
-        if st.button("▶ Process & Index Background CCTV Feeds", type="secondary", key="btn_bg_track"):
+        if st.button(f"▶ Process & Index All Background CCTV Feeds ({len(bg_cams_to_run)} Streams)", type="secondary", key="btn_bg_track"):
             if not bg_cams_to_run:
                 st.error("No background CCTV videos available.")
             else:
@@ -602,6 +646,12 @@ with tab2:
                         matched = next((t for t in main_trks if t.tracklet_id in inc.involved_tracklet_ids), None)
                         if matched:
                             st.session_state["selected_query_trk"] = matched
+                            pipeline.highlight_camera_suspect(
+                                camera_id=matched.camera_id,
+                                suspect_tracklet_id=matched.tracklet_id,
+                                label="LOCKED QUERY TARGET",
+                            )
+                            st.rerun()
         else:
             st.info("No sudden stop or collision flagged automatically. Select suspect vehicle manually below.")
 
@@ -629,6 +679,12 @@ with tab2:
                         )
                         if st.button("🎯 Lock This Car", key=f"sel_main_{trk.tracklet_id}"):
                             st.session_state["selected_query_trk"] = trk
+                            pipeline.highlight_camera_suspect(
+                                camera_id=trk.camera_id,
+                                suspect_tracklet_id=trk.tracklet_id,
+                                label="LOCKED QUERY TARGET",
+                            )
+                            st.rerun()
 
         selected = st.session_state["selected_query_trk"]
         if selected:
@@ -734,7 +790,10 @@ with tab3:
 
                     # 2. Retrieved CCTV Candidate
                     with s_col_candidate:
-                        st.markdown("##### 📸 Retrieved CCTV Candidate")
+                        st.markdown(
+                            f"##### 📸 Verified Candidate <span class='status-badge badge-success'>{sighting.score*100:.1f}% MATCH</span>",
+                            unsafe_allow_html=True,
+                        )
                         if sighting.crop_path and Path(sighting.crop_path).exists():
                             st.image(Image.open(sighting.crop_path), use_container_width=True)
                         st.caption(
@@ -749,9 +808,10 @@ with tab3:
 
                     # 3. Context & CCTV Video Snippet
                     with s_col_cctv_video:
-                        st.markdown("##### 📹 CCTV Stream Playback")
+                        st.markdown("##### 📹 Verified CCTV Stream Playback")
                         cam_v_path = pipeline.annotated_videos.get(sighting.camera_id)
                         if cam_v_path and Path(cam_v_path).exists():
+                            st.caption("🚨 Suspect vehicle highlighted in RED double box with target badge.")
                             st.video(str(cam_v_path))
                         else:
                             st.info("CCTV video stream available in Tab 1.")

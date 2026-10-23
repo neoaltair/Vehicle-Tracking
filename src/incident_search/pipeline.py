@@ -171,6 +171,47 @@ class IncidentSearchPipeline:
         cam_trks = [t for t in self.tracklets if t.camera_id == camera_id]
         return detect_incidents_from_tracklets(cam_trks, fps=fps)
 
+    def highlight_camera_suspect(
+        self,
+        camera_id: str,
+        suspect_tracklet_id: str,
+        label: str = "SUSPECT MATCH",
+        output_dir: str | Path = "outputs/pipeline",
+        max_frames: int | None = None,
+    ) -> str | None:
+        """Render and save an annotated video where the suspect vehicle is highlighted in neon red."""
+        raw_v = self.raw_video_paths.get(camera_id)
+        if not raw_v or not Path(raw_v).exists():
+            logger.warning("No raw video found for camera %s", camera_id)
+            return None
+
+        cam_trks = [t for t in self.tracklets if t.camera_id == camera_id]
+        if not cam_trks:
+            return None
+
+        out_p = Path(output_dir) / f"{camera_id}_suspect_highlighted.mp4"
+        offset = self.camera_offsets.get(camera_id, 0.0)
+
+        from incident_search.detect_track.highlighter import render_highlighted_video
+
+        try:
+            render_highlighted_video(
+                video_path=raw_v,
+                tracklets=cam_trks,
+                output_video_path=out_p,
+                suspect_tracklet_ids={
+                    suspect_tracklet_id: {"label": label, "color": (0, 0, 255)}
+                },
+                time_offset_s=offset,
+                max_frames=max_frames,
+            )
+            if out_p.exists():
+                self.annotated_videos[camera_id] = str(out_p.as_posix())
+                return str(out_p.as_posix())
+        except Exception as e:
+            logger.warning("Could not render suspect highlighted video for %s: %s", camera_id, e)
+        return None
+
     def trigger_incident_search(
         self,
         query_tracklet: Tracklet,
@@ -190,7 +231,7 @@ class IncidentSearchPipeline:
 
         bg_tracklets = [t for t in self.tracklets if t.camera_id != query_tracklet.camera_id]
 
-        return self.reconstructor.reconstruct_journey(
+        journey_res = self.reconstructor.reconstruct_journey(
             incident=incident,
             query_tracklet=query_tracklet,
             background_tracklets=bg_tracklets,
@@ -199,6 +240,22 @@ class IncidentSearchPipeline:
             alpha=alpha,
             min_score=min_score,
         )
+
+        # Highlight suspect in query camera
+        self.highlight_camera_suspect(
+            camera_id=query_tracklet.camera_id,
+            suspect_tracklet_id=query_tracklet.tracklet_id,
+            label="LOCKED QUERY TARGET",
+        )
+        # Highlight suspect in each confirmed sighting camera
+        for s in journey_res.sightings:
+            self.highlight_camera_suspect(
+                camera_id=s.camera_id,
+                suspect_tracklet_id=s.tracklet.tracklet_id,
+                label=f"SUSPECT MATCH ({int(s.score * 100)}%)",
+            )
+
+        return journey_res
 
     def search_vehicle(
         self,
